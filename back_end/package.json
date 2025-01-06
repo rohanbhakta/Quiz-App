@@ -4,9 +4,10 @@
   "description": "Backend for Quiz App",
   "main": "dist/server.js",
   "scripts": {
-    "start": "ts-node src/server.ts",
+    "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn src/server.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "vercel-build": "tsc"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",

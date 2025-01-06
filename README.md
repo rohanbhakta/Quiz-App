@@ -25,7 +25,7 @@ A full-stack quiz application built with React and Node.js that allows users to 
 - TypeScript
 - Mongoose
 
-## Setup
+## Local Development Setup
 
 1. Clone the repository:
 ```bash
@@ -61,6 +61,30 @@ npm start
 ```
 
 5. Access the application at `http://localhost:3000`
+
+## Deployment
+
+### Backend Deployment (Vercel)
+1. Push your code to GitHub
+2. Create a new project in Vercel
+3. Connect your GitHub repository
+4. Set the following environment variables in Vercel:
+   - `PORT`
+   - `MONGODB_URI`
+   - `NODE_ENV=production`
+5. Deploy and note down your backend URL
+
+### Frontend Deployment (Vercel)
+1. Create a new project in Vercel
+2. Connect your GitHub repository
+3. Set the build settings:
+   - Build Command: `npm run build`
+   - Output Directory: `build`
+4. Set the environment variable:
+   - `REACT_APP_API_URL`: Your backend URL (e.g., https://your-backend-url/api)
+5. Deploy
+
+Note: Make sure to update the `REACT_APP_API_URL` in your frontend deployment to point to your deployed backend URL.
 
 ## Usage
 

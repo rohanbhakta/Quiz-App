@@ -9,14 +9,14 @@ import QuizResponse from './models/QuizResponse';
 const app = express();
 
 // CORS configuration
-const corsOptions = {
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://192.168.102.190:3000'],
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? [process.env.FRONTEND_URL || ''] 
+    : ['http://localhost:3000', 'http://127.0.0.1:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
-};
-
-app.use(cors(corsOptions));
+}));
 app.use(express.json());
 
 // Connect to MongoDB
@@ -186,7 +186,13 @@ app.get('/api/quizzes/:id/results', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Only start the server if we're not in a serverless environment
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 5001;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+// Export the app for serverless
+export default app;

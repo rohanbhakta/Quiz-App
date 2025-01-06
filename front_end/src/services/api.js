@@ -1,6 +1,7 @@
 import axios from 'axios';
+import config from '../config';
 
-const API_URL = 'http://localhost:5001/api';
+const API_URL = config.API_URL;
 
 export const api = {
   // Create a new quiz
