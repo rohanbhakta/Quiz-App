@@ -10,23 +10,10 @@ const app = express();
 
 // CORS configuration
 app.use(cors({
-  origin: 'https://quizapp-five-iota.vercel.app',
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: '*',
-  exposedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  preflightContinue: false,
-  optionsSuccessStatus: 204
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
-
-// Additional CORS headers for preflight
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://quizapp-five-iota.vercel.app');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  next();
-});
 app.use(express.json());
 
 // Connect to MongoDB

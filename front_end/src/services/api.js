@@ -5,10 +5,8 @@ import config from '../config';
 const axiosInstance = axios.create({
   baseURL: config.API_URL,
   headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  },
-  withCredentials: true
+    'Content-Type': 'application/json'
+  }
 });
 
 export const api = {
