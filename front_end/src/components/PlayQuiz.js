@@ -98,8 +98,31 @@ const PlayQuiz = () => {
   if (loading) {
     return (
       <Container>
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            alignItems: 'center', 
+            mt: 8,
+            gap: 2
+          }}
+        >
+          <CircularProgress 
+            size={60}
+            sx={{ 
+              color: '#00A0DC',
+              '& .MuiCircularProgress-circle': {
+                strokeLinecap: 'round',
+              }
+            }}
+          />
+          <Typography 
+            variant="h6" 
+            color="text.secondary"
+            sx={{ animation: 'fadeIn 0.6s ease-out' }}
+          >
+            Loading Quiz...
+          </Typography>
         </Box>
       </Container>
     );
@@ -124,10 +147,39 @@ const PlayQuiz = () => {
   if (!playerId) {
     return (
       <Container maxWidth="sm">
-        <Box sx={{ mt: 4 }}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h5" gutterBottom>
-              Join Quiz: {quiz.title}
+        <Box 
+          sx={{ 
+            mt: 8,
+            animation: 'fadeIn 0.6s ease-out'
+          }}
+        >
+          <Paper 
+            sx={{ 
+              p: 4,
+              borderRadius: 2,
+              boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
+              background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
+            }}
+          >
+            <Typography 
+              variant="h4" 
+              gutterBottom
+              sx={{
+                background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                mb: 3,
+                textAlign: 'center'
+              }}
+            >
+              Join Quiz
+            </Typography>
+            <Typography 
+              variant="h6" 
+              color="text.secondary"
+              sx={{ mb: 4, textAlign: 'center' }}
+            >
+              {quiz.title}
             </Typography>
             <form onSubmit={handleJoin}>
               <TextField
@@ -144,10 +196,27 @@ const PlayQuiz = () => {
                 variant="contained"
                 color="primary"
                 fullWidth
-                sx={{ mt: 2 }}
+                sx={{ 
+                  mt: 3,
+                  py: 1.5,
+                  background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+                  '&:hover': {
+                    background: 'linear-gradient(90deg, #002266 0%, #007AA6 100%)',
+                  },
+                  '&.Mui-disabled': {
+                    background: '#e0e0e0',
+                  }
+                }}
                 disabled={!playerName || submitting}
               >
-                {submitting ? 'Joining...' : 'Join Quiz'}
+                {submitting ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={20} sx={{ color: 'white' }} />
+                    <span>Joining...</span>
+                  </Box>
+                ) : (
+                  'Start Quiz'
+                )}
               </Button>
             </form>
           </Paper>
@@ -162,10 +231,51 @@ const PlayQuiz = () => {
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
-        <LinearProgress variant="determinate" value={progress} sx={{ mb: 2 }} />
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h5" gutterBottom>
+        <Box sx={{ position: 'relative', mb: 4 }}>
+          <LinearProgress 
+            variant="determinate" 
+            value={progress} 
+            sx={{ 
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: 'rgba(0,51,141,0.1)',
+              '& .MuiLinearProgress-bar': {
+                background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+                borderRadius: 4,
+              }
+            }} 
+          />
+          <Typography 
+            variant="body2" 
+            color="text.secondary"
+            sx={{ 
+              position: 'absolute',
+              right: 0,
+              top: '100%',
+              mt: 1
+            }}
+          >
             Question {currentQuestion + 1} of {quiz.questions.length}
+          </Typography>
+        </Box>
+        <Paper 
+          sx={{ 
+            p: 4,
+            borderRadius: 2,
+            boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
+            background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
+            animation: 'fadeIn 0.4s ease-out',
+          }}
+        >
+          <Typography 
+            variant="h5" 
+            sx={{
+              color: '#00338D',
+              mb: 4,
+              fontWeight: 600
+            }}
+          >
+            {question.text}
           </Typography>
           <FormControl component="fieldset" sx={{ width: '100%' }}>
             <FormLabel component="legend" sx={{ mb: 2 }}>{question.text}</FormLabel>
@@ -174,10 +284,31 @@ const PlayQuiz = () => {
                 <FormControlLabel
                   key={index}
                   value={index.toString()}
-                  control={<Radio />}
+                  control={
+                    <Radio 
+                      sx={{
+                        '&.Mui-checked': {
+                          color: '#00338D',
+                        }
+                      }}
+                    />
+                  }
                   label={option}
                   onClick={() => handleAnswerSelect(question.id, index)}
                   disabled={submitting}
+                  sx={{
+                    m: 0,
+                    p: 2,
+                    width: '100%',
+                    borderRadius: 1,
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      backgroundColor: 'rgba(0,51,141,0.05)',
+                    },
+                    '&.Mui-disabled': {
+                      opacity: 0.5,
+                    }
+                  }}
                 />
               ))}
             </RadioGroup>

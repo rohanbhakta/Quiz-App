@@ -1,38 +1,162 @@
-.App {
-  text-align: center;
+/* Modern CSS Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
-}
-
-.App-link {
-  color: #61dafb;
-}
-
-@keyframes App-logo-spin {
+/* Animations */
+@keyframes fadeIn {
   from {
-    transform: rotate(0deg);
+    opacity: 0;
+    transform: translateY(20px);
   }
   to {
-    transform: rotate(360deg);
+    opacity: 1;
+    transform: translateY(0);
   }
+}
+
+@keyframes gradientFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00338D;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #002266;
+}
+
+/* Gradient Text Effect */
+.gradient-text {
+  background: linear-gradient(90deg, #00338D 0%, #00A0DC 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% auto;
+  animation: gradientFlow 5s ease infinite;
+}
+
+/* Card Hover Effects */
+.feature-card {
+  transition: all 0.3s ease;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(0, 51, 141, 0.15);
+}
+
+/* Hero Section Animation */
+.hero-content {
+  animation: fadeIn 1s ease-out;
+}
+
+/* Quiz Components Styling */
+.quiz-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 51, 141, 0.08);
+  padding: 2rem;
+  margin: 2rem 0;
+}
+
+.quiz-question {
+  font-size: 1.25rem;
+  color: #00338D;
+  margin-bottom: 1.5rem;
+}
+
+.quiz-options {
+  display: grid;
+  gap: 1rem;
+}
+
+.quiz-option {
+  padding: 1rem;
+  border: 2px solid #E0E7FF;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.quiz-option:hover {
+  background: rgba(0, 51, 141, 0.05);
+  border-color: #00338D;
+}
+
+.quiz-option.selected {
+  background: rgba(0, 51, 141, 0.1);
+  border-color: #00338D;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .quiz-container {
+    padding: 1.5rem;
+    margin: 1rem 0;
+  }
+  
+  .quiz-question {
+    font-size: 1.1rem;
+  }
+}
+
+/* Loading States */
+.loading-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Success/Error States */
+.success-message {
+  color: #00A0DC;
+  background: rgba(0, 160, 220, 0.1);
+  border: 1px solid rgba(0, 160, 220, 0.2);
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
+}
+
+.error-message {
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.2);
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
 }

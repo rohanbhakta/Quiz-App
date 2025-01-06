@@ -62,8 +62,31 @@ const QuizResults = () => {
   if (loading) {
     return (
       <Container>
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            alignItems: 'center', 
+            mt: 8,
+            gap: 2
+          }}
+        >
+          <CircularProgress 
+            size={60}
+            sx={{ 
+              color: '#00A0DC',
+              '& .MuiCircularProgress-circle': {
+                strokeLinecap: 'round',
+              }
+            }}
+          />
+          <Typography 
+            variant="h6" 
+            color="text.secondary"
+            sx={{ animation: 'fadeIn 0.6s ease-out' }}
+          >
+            Loading Results...
+          </Typography>
         </Box>
       </Container>
     );
@@ -93,43 +116,147 @@ const QuizResults = () => {
 
   return (
     <Container maxWidth="md">
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          {quiz.title} - Results
+      <Box 
+        sx={{ 
+          mt: 6,
+          mb: 8,
+          animation: 'fadeIn 0.6s ease-out'
+        }}
+      >
+        <Typography 
+          variant="h2" 
+          gutterBottom
+          sx={{
+            background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            textAlign: 'center',
+            mb: 3
+          }}
+        >
+          Quiz Results
+        </Typography>
+        <Typography 
+          variant="h5" 
+          color="text.secondary" 
+          sx={{ 
+            mb: 6,
+            textAlign: 'center'
+          }}
+        >
+          {quiz.title}
         </Typography>
 
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={4}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
+            <Card
+              sx={{
+                background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
+                borderRadius: 2,
+                boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
+                height: '100%',
+                transition: 'transform 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                }
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Typography 
+                  color="primary" 
+                  gutterBottom
+                  sx={{ 
+                    fontSize: '1.1rem',
+                    fontWeight: 500
+                  }}
+                >
                   Total Participants
                 </Typography>
-                <Typography variant="h4">
+                <Typography 
+                  variant="h3"
+                  sx={{
+                    background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    fontWeight: 600
+                  }}
+                >
                   {totalParticipants}
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
           <Grid item xs={12} sm={4}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
+            <Card
+              sx={{
+                background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
+                borderRadius: 2,
+                boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
+                height: '100%',
+                transition: 'transform 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                }
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Typography 
+                  color="primary" 
+                  gutterBottom
+                  sx={{ 
+                    fontSize: '1.1rem',
+                    fontWeight: 500
+                  }}
+                >
                   Average Score
                 </Typography>
-                <Typography variant="h4">
+                <Typography 
+                  variant="h3"
+                  sx={{
+                    background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    fontWeight: 600
+                  }}
+                >
                   {(averageScore / quiz.questions.length * 100).toFixed(1)}%
                 </Typography>
               </CardContent>
             </Card>
           </Grid>
           <Grid item xs={12} sm={4}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
+            <Card
+              sx={{
+                background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
+                borderRadius: 2,
+                boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
+                height: '100%',
+                transition: 'transform 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                }
+              }}
+            >
+              <CardContent sx={{ p: 3 }}>
+                <Typography 
+                  color="primary" 
+                  gutterBottom
+                  sx={{ 
+                    fontSize: '1.1rem',
+                    fontWeight: 500
+                  }}
+                >
                   Total Questions
                 </Typography>
-                <Typography variant="h4">
+                <Typography 
+                  variant="h3"
+                  sx={{
+                    background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    fontWeight: 600
+                  }}
+                >
                   {quiz.questions.length}
                 </Typography>
               </CardContent>
@@ -137,33 +264,70 @@ const QuizResults = () => {
           </Grid>
         </Grid>
 
-        <Paper sx={{ mt: 3 }}>
+        <Paper 
+          sx={{ 
+            mt: 4,
+            borderRadius: 2,
+            boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
+            background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
+            overflow: 'hidden'
+          }}
+        >
           <TableContainer>
             <Table>
               <TableHead>
-                <TableRow>
-                  <TableCell>Rank</TableCell>
-                  <TableCell>Player</TableCell>
-                  <TableCell align="right">Score</TableCell>
-                  <TableCell align="right">Percentage</TableCell>
+                <TableRow sx={{ background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)' }}>
+                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>Rank</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>Player</TableCell>
+                  <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Score</TableCell>
+                  <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Percentage</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {sortedResults.map((result, index) => (
                   <TableRow 
                     key={index}
-                    sx={index < 3 ? { 
-                      backgroundColor: [
-                        'rgba(255, 215, 0, 0.1)',
-                        'rgba(192, 192, 192, 0.1)',
-                        'rgba(205, 127, 50, 0.1)'
-                      ][index]
-                    } : {}}
+                    sx={{
+                      ...index < 3 ? { 
+                        background: [
+                          'linear-gradient(90deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 215, 0, 0.05) 100%)',
+                          'linear-gradient(90deg, rgba(192, 192, 192, 0.1) 0%, rgba(192, 192, 192, 0.05) 100%)',
+                          'linear-gradient(90deg, rgba(205, 127, 50, 0.1) 0%, rgba(205, 127, 50, 0.05) 100%)'
+                        ][index]
+                      } : {},
+                      transition: 'transform 0.2s, background-color 0.2s',
+                      '&:hover': {
+                        backgroundColor: 'rgba(0,51,141,0.05)',
+                      }
+                    }}
                   >
                     <TableCell>
-                      <Typography variant="body1" fontWeight={index < 3 ? 'bold' : 'normal'}>
-                        {index + 1}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {index < 3 && (
+                          <Typography 
+                            component="span" 
+                            sx={{ 
+                              fontSize: '1.2rem',
+                              color: [
+                                '#FFD700',
+                                '#C0C0C0',
+                                '#CD7F32'
+                              ][index]
+                            }}
+                          >
+                            {['🏆', '🥈', '🥉'][index]}
+                          </Typography>
+                        )}
+                        <Typography 
+                          variant="body1" 
+                          sx={{
+                            fontWeight: index < 3 ? 600 : 400,
+                            color: index < 3 ? '#00338D' : 'inherit'
+                          }}
+                        >
+                          {index + 1}
+                        </Typography>
+                      </Box>
                     </TableCell>
                     <TableCell>{result.player.name}</TableCell>
                     <TableCell align="right">
