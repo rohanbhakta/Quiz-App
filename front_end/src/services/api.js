@@ -1,36 +1,44 @@
 import axios from 'axios';
 import config from '../config';
 
-const API_URL = config.API_URL;
+// Create axios instance with custom config
+const axiosInstance = axios.create({
+  baseURL: config.API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  },
+  withCredentials: true
+});
 
 export const api = {
   // Create a new quiz
   createQuiz: async (title, questions) => {
-    const response = await axios.post(`${API_URL}/quizzes`, { title, questions });
+    const response = await axiosInstance.post('/quizzes', { title, questions });
     return response.data;
   },
 
   // Get a quiz by ID
   getQuiz: async (id) => {
-    const response = await axios.get(`${API_URL}/quizzes/${id}`);
+    const response = await axiosInstance.get(`/quizzes/${id}`);
     return response.data;
   },
 
   // Join a quiz as a player
   joinQuiz: async (quizId, name) => {
-    const response = await axios.post(`${API_URL}/quizzes/${quizId}/join`, { name });
+    const response = await axiosInstance.post(`/quizzes/${quizId}/join`, { name });
     return response.data;
   },
 
   // Submit quiz answers
   submitAnswers: async (quizId, playerId, answers) => {
-    const response = await axios.post(`${API_URL}/quizzes/${quizId}/submit`, { playerId, answers });
+    const response = await axiosInstance.post(`/quizzes/${quizId}/submit`, { playerId, answers });
     return response.data;
   },
 
   // Get quiz results
   getResults: async (quizId) => {
-    const response = await axios.get(`${API_URL}/quizzes/${quizId}/results`);
+    const response = await axiosInstance.get(`/quizzes/${quizId}/results`);
     return response.data;
   }
 };
