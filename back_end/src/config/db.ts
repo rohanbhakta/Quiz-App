@@ -12,7 +12,7 @@ if (!MONGODB_URI) {
 
 export const connectDB = async () => {
   try {
-    console.log('Connecting to MongoDB...');
+    console.log('Attempting to connect to MongoDB...');
     
     await mongoose.connect(MONGODB_URI, {
       serverSelectionTimeoutMS: 60000,
@@ -22,6 +22,10 @@ export const connectDB = async () => {
     });
 
     console.log('MongoDB connected successfully');
+    console.log('Connection state:', mongoose.connection.readyState);
+    if (mongoose.connection.db) {
+      console.log('Database:', mongoose.connection.db.databaseName);
+    }
 
     mongoose.connection.on('error', (err) => {
       console.error('MongoDB connection error:', err);

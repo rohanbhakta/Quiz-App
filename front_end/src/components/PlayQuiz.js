@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -11,14 +11,17 @@ import {
   RadioGroup,
   FormControlLabel,
   FormControl,
-  FormLabel,
   CircularProgress,
   Alert,
-  LinearProgress
+  LinearProgress,
+  Fade,
+  CircularProgress as MuiCircularProgress,
+  useTheme
 } from '@mui/material';
 import { api } from '../services/api';
 
 const PlayQuiz = () => {
+  const theme = useTheme();
   const { id } = useParams();
   const navigate = useNavigate();
   const [quiz, setQuiz] = useState(null);
@@ -29,13 +32,117 @@ const PlayQuiz = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(null);
+  const [questionStartTime, setQuestionStartTime] = useState(null);
+  const [showTimeWarning, setShowTimeWarning] = useState(false);
+  const audioRef = useRef(null);
+
+  // Audio setup for timer sound
+  useEffect(() => {
+    let audioContext = null;
+    let oscillator = null;
+    let gainNode = null;
+
+    const setupAudio = () => {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      oscillator = audioContext.createOscillator();
+      gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.type = 'square';
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+
+      oscillator.start();
+
+      audioRef.current = {
+        context: audioContext,
+        oscillator,
+        gainNode,
+        playBeep: (timeLeft) => {
+          const now = audioContext.currentTime;
+          const frequency = timeLeft <= 3 ? 880 : 440;
+          const duration = timeLeft <= 3 ? 0.2 : 0.1;
+          
+          oscillator.frequency.setValueAtTime(frequency, now);
+          gainNode.gain.cancelScheduledValues(now);
+          gainNode.gain.setValueAtTime(0, now);
+          gainNode.gain.linearRampToValueAtTime(0.3, now + 0.01);
+          gainNode.gain.linearRampToValueAtTime(0, now + duration);
+        }
+      };
+    };
+
+    setupAudio();
+
+    return () => {
+      if (oscillator) oscillator.stop();
+      if (audioContext) audioContext.close();
+    };
+  }, []);
+
+  const handleSubmit = useCallback(async (finalAnswers) => {
+    setSubmitting(true);
+    try {
+      if (id && playerId) {
+        const result = await api.submitAnswers(id, playerId, finalAnswers);
+        navigate(`/quiz/${id}/results`);
+      }
+    } catch (err) {
+      setError('Failed to submit answers. Please try again.');
+      setSubmitting(false);
+    }
+  }, [id, playerId, navigate]);
+
+  const handleAnswerSelect = useCallback(async (questionId, selectedOption, responseTime = null) => {
+    try {
+      const currentTime = Date.now();
+      if (!responseTime) {
+        responseTime = currentTime - questionStartTime;
+      }
+
+      const maxAllowedTime = quiz.questions[currentQuestion].timer * 1000;
+      const validatedTime = Math.min(responseTime, maxAllowedTime);
+
+      const newAnswers = [...answers, { 
+        questionId, 
+        selectedOption,
+        responseTime: validatedTime
+      }];
+      setAnswers(newAnswers);
+      
+      if (quiz && currentQuestion < quiz.questions.length - 1) {
+        setCurrentQuestion(prev => prev + 1);
+      } else {
+        await handleSubmit(newAnswers);
+      }
+    } catch (error) {
+      setError('Failed to process answer. Please try again.');
+    }
+  }, [answers, currentQuestion, quiz, questionStartTime, handleSubmit]);
+
+  const handleTimeUp = useCallback(() => {
+    if (quiz && currentQuestion < quiz.questions.length) {
+      const question = quiz.questions[currentQuestion];
+      const maxTime = question.timer * 1000;
+      handleAnswerSelect(question.id, -1, maxTime);
+    }
+  }, [quiz, currentQuestion, handleAnswerSelect]);
 
   useEffect(() => {
     const fetchQuiz = async () => {
       try {
         if (id) {
           const quizData = await api.getQuiz(id);
-          setQuiz(quizData);
+          const validatedQuizData = {
+            ...quizData,
+            questions: quizData.questions.map(q => ({
+              ...q,
+              timer: q.timer || 30
+            }))
+          };
+          setQuiz(validatedQuizData);
           setError(null);
         }
       } catch (err) {
@@ -47,6 +154,57 @@ const PlayQuiz = () => {
 
     fetchQuiz();
   }, [id]);
+
+  // Timer state management
+  const timerRef = useRef({ intervalId: null, startTime: null });
+
+  // Initialize timer when question changes
+  useEffect(() => {
+    const startTimer = () => {
+      if (!quiz || !playerId || currentQuestion >= quiz.questions.length) return;
+
+      if (timerRef.current.intervalId) {
+        clearInterval(timerRef.current.intervalId);
+      }
+
+      const duration = Math.min(Math.max(quiz.questions[currentQuestion].timer || 30, 5), 300);
+      const startTime = Date.now();
+      timerRef.current = { intervalId: null, startTime };
+
+      setTimeLeft(duration);
+      setQuestionStartTime(startTime);
+      setShowTimeWarning(false);
+
+      const intervalId = setInterval(() => {
+        const now = Date.now();
+        const elapsed = Math.floor((now - startTime) / 1000);
+        const remaining = duration - elapsed;
+
+        if (remaining <= 0) {
+          clearInterval(intervalId);
+          handleTimeUp();
+          setTimeLeft(0);
+        } else {
+          setTimeLeft(remaining);
+          if (remaining <= 5 && audioRef.current) {
+            setShowTimeWarning(true);
+            audioRef.current.playBeep(remaining);
+          }
+        }
+      }, 50);
+
+      timerRef.current.intervalId = intervalId;
+    };
+
+    startTimer();
+
+    return () => {
+      if (timerRef.current.intervalId) {
+        clearInterval(timerRef.current.intervalId);
+        timerRef.current.intervalId = null;
+      }
+    };
+  }, [quiz, playerId, currentQuestion, handleTimeUp]);
 
   const handleJoin = async (e) => {
     e.preventDefault();
@@ -64,63 +222,20 @@ const PlayQuiz = () => {
     }
   };
 
-  const handleAnswerSelect = async (questionId, selectedOption) => {
-    const newAnswers = [...answers, { questionId, selectedOption }];
-    setAnswers(newAnswers);
-    
-    if (quiz && currentQuestion < quiz.questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
-      await handleSubmit(newAnswers);
-    }
-  };
-
-  const handleSubmit = async (finalAnswers) => {
-    setSubmitting(true);
-    try {
-      if (id && playerId) {
-        console.log('Submitting answers:', {
-          quizId: id,
-          playerId,
-          answers: finalAnswers
-        });
-        const result = await api.submitAnswers(id, playerId, finalAnswers);
-        console.log('Submission result:', result);
-        navigate(`/quiz/${id}/results`);
-      }
-    } catch (err) {
-      console.error('Error submitting answers:', err);
-      setError('Failed to submit answers. Please try again.');
-      setSubmitting(false);
-    }
-  };
-
   if (loading) {
     return (
       <Container>
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            flexDirection: 'column',
-            alignItems: 'center', 
-            mt: 8,
-            gap: 2
-          }}
-        >
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, gap: 2 }}>
           <CircularProgress 
             size={60}
             sx={{ 
-              color: '#00A0DC',
+              color: theme.palette.primary.light,
               '& .MuiCircularProgress-circle': {
                 strokeLinecap: 'round',
               }
             }}
           />
-          <Typography 
-            variant="h6" 
-            color="text.secondary"
-            sx={{ animation: 'fadeIn 0.6s ease-out' }}
-          >
+          <Typography variant="h6" color="text.secondary">
             Loading Quiz...
           </Typography>
         </Box>
@@ -147,25 +262,18 @@ const PlayQuiz = () => {
   if (!playerId) {
     return (
       <Container maxWidth="sm">
-        <Box 
-          sx={{ 
-            mt: 8,
-            animation: 'fadeIn 0.6s ease-out'
-          }}
-        >
-          <Paper 
-            sx={{ 
-              p: 4,
-              borderRadius: 2,
-              boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
-              background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
-            }}
-          >
+        <Box sx={{ mt: 8 }}>
+          <Paper sx={{ 
+            p: 4,
+            borderRadius: 2,
+            boxShadow: theme.shadows[4],
+            background: theme.palette.gradient.background,
+          }}>
             <Typography 
               variant="h4" 
               gutterBottom
               sx={{
-                background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+                background: theme.palette.gradient.primary,
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 mb: 3,
@@ -199,12 +307,12 @@ const PlayQuiz = () => {
                 sx={{ 
                   mt: 3,
                   py: 1.5,
-                  background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+                  background: theme.palette.gradient.primary,
                   '&:hover': {
-                    background: 'linear-gradient(90deg, #002266 0%, #007AA6 100%)',
+                    background: theme.palette.gradient.hover,
                   },
                   '&.Mui-disabled': {
-                    background: '#e0e0e0',
+                    background: theme.palette.action.disabledBackground,
                   }
                 }}
                 disabled={!playerName || submitting}
@@ -227,6 +335,7 @@ const PlayQuiz = () => {
 
   const question = quiz.questions[currentQuestion];
   const progress = ((currentQuestion + 1) / quiz.questions.length) * 100;
+  const timerProgress = timeLeft ? (timeLeft / question.timer) * 100 : 0;
 
   return (
     <Container maxWidth="md">
@@ -238,9 +347,9 @@ const PlayQuiz = () => {
             sx={{ 
               height: 8,
               borderRadius: 4,
-              backgroundColor: 'rgba(0,51,141,0.1)',
+              backgroundColor: theme.palette.divider,
               '& .MuiLinearProgress-bar': {
-                background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+                background: theme.palette.gradient.primary,
                 borderRadius: 4,
               }
             }} 
@@ -248,72 +357,125 @@ const PlayQuiz = () => {
           <Typography 
             variant="body2" 
             color="text.secondary"
-            sx={{ 
-              position: 'absolute',
-              right: 0,
-              top: '100%',
-              mt: 1
-            }}
+            sx={{ position: 'absolute', right: 0, top: '100%', mt: 1 }}
           >
             Question {currentQuestion + 1} of {quiz.questions.length}
           </Typography>
         </Box>
-        <Paper 
-          sx={{ 
+
+        <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+            <MuiCircularProgress
+              variant="determinate"
+              value={timerProgress}
+              size={80}
+              thickness={4}
+              sx={{
+                color: timerProgress <= 25 ? '#dc0000' : theme.palette.primary.main,
+                transition: 'color 0.3s ease',
+              }}
+            />
+            <Box sx={{
+              top: 0,
+              left: 0,
+              bottom: 0,
+              right: 0,
+              position: 'absolute',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <Typography
+                variant="h4"
+                component="div"
+                sx={{ 
+                  color: timerProgress <= 25 ? '#dc0000' : theme.palette.primary.main,
+                  fontWeight: 600,
+                  animation: showTimeWarning ? 'shake 0.5s infinite' : 'none',
+                  '@keyframes shake': {
+                    '0%, 100%': { transform: 'translateX(0)' },
+                    '25%': { transform: 'translateX(-2px)' },
+                    '75%': { transform: 'translateX(2px)' },
+                  }
+                }}
+              >
+                {timeLeft}
+              </Typography>
+            </Box>
+          </Box>
+          <LinearProgress 
+            variant="determinate" 
+            value={timerProgress} 
+            sx={{ 
+              flexGrow: 1,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: theme.palette.divider,
+              '& .MuiLinearProgress-bar': {
+                background: timerProgress <= 25 
+                  ? 'linear-gradient(90deg, #dc0000 0%, #ff4d4d 100%)'
+                  : theme.palette.gradient.primary,
+                borderRadius: 4,
+                transition: 'all 1s linear'
+              }
+            }} 
+          />
+        </Box>
+
+        <Fade in={true} timeout={300}>
+          <Paper sx={{ 
             p: 4,
             borderRadius: 2,
-            boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
-            background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
-            animation: 'fadeIn 0.4s ease-out',
-          }}
-        >
-          <Typography 
-            variant="h5" 
-            sx={{
-              color: '#00338D',
-              mb: 4,
-              fontWeight: 600
-            }}
-          >
-            {question.text}
-          </Typography>
-          <FormControl component="fieldset" sx={{ width: '100%' }}>
-            <FormLabel component="legend" sx={{ mb: 2 }}>{question.text}</FormLabel>
-            <RadioGroup>
-              {question.options.map((option, index) => (
-                <FormControlLabel
-                  key={index}
-                  value={index.toString()}
-                  control={
-                    <Radio 
-                      sx={{
-                        '&.Mui-checked': {
-                          color: '#00338D',
-                        }
-                      }}
-                    />
-                  }
-                  label={option}
-                  onClick={() => handleAnswerSelect(question.id, index)}
-                  disabled={submitting}
-                  sx={{
-                    m: 0,
-                    p: 2,
-                    width: '100%',
-                    borderRadius: 1,
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      backgroundColor: 'rgba(0,51,141,0.05)',
-                    },
-                    '&.Mui-disabled': {
-                      opacity: 0.5,
+            boxShadow: theme.shadows[4],
+            background: theme.palette.gradient.background,
+          }}>
+            <Typography 
+              variant="h5" 
+              sx={{
+                color: theme.palette.primary.main,
+                mb: 4,
+                fontWeight: 600
+              }}
+            >
+              {question.text}
+            </Typography>
+            <FormControl component="fieldset" sx={{ width: '100%' }}>
+              <RadioGroup>
+                {question.options.map((option, index) => (
+                  <FormControlLabel
+                    key={index}
+                    value={index.toString()}
+                    control={
+                      <Radio 
+                        sx={{
+                          '&.Mui-checked': {
+                            color: theme.palette.primary.main,
+                          }
+                        }}
+                      />
                     }
-                  }}
-                />
-              ))}
-            </RadioGroup>
-          </FormControl>
-        </Paper>
+                    label={option}
+                    onClick={() => handleAnswerSelect(question.id, index)}
+                    disabled={submitting || timeLeft === 0}
+                    sx={{
+                      m: 0,
+                      p: 2,
+                      width: '100%',
+                      borderRadius: 1,
+                      transition: 'all 0.2s',
+                      '&:hover': {
+                        backgroundColor: theme.palette.action.hover,
+                      },
+                      '&.Mui-disabled': {
+                        opacity: 0.5,
+                      }
+                    }}
+                  />
+                ))}
+              </RadioGroup>
+            </FormControl>
+          </Paper>
+        </Fade>
       </Box>
     </Container>
   );

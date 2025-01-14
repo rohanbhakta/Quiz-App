@@ -15,11 +15,14 @@ import {
   Alert,
   Card,
   CardContent,
-  Grid
+  Grid,
+  useTheme
 } from '@mui/material';
 import { api } from '../services/api';
+import { Speed as SpeedIcon, EmojiEvents as TrophyIcon } from '@mui/icons-material';
 
 const QuizResults = () => {
+  const theme = useTheme();
   const { id } = useParams();
   const [results, setResults] = useState([]);
   const [quiz, setQuiz] = useState(null);
@@ -59,32 +62,25 @@ const QuizResults = () => {
     return () => clearInterval(interval);
   }, [id]);
 
+  const formatTime = (ms) => {
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  };
+
   if (loading) {
     return (
       <Container>
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            flexDirection: 'column',
-            alignItems: 'center', 
-            mt: 8,
-            gap: 2
-          }}
-        >
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, gap: 2 }}>
           <CircularProgress 
             size={60}
             sx={{ 
-              color: '#00A0DC',
+              color: theme.palette.primary.light,
               '& .MuiCircularProgress-circle': {
                 strokeLinecap: 'round',
               }
             }}
           />
-          <Typography 
-            variant="h6" 
-            color="text.secondary"
-            sx={{ animation: 'fadeIn 0.6s ease-out' }}
-          >
+          <Typography variant="h6" color="text.secondary">
             Loading Results...
           </Typography>
         </Box>
@@ -108,26 +104,19 @@ const QuizResults = () => {
     );
   }
 
-  const sortedResults = [...results].sort((a, b) => b.score - a.score);
-  const totalParticipants = sortedResults.length;
+  const totalParticipants = results.length;
   const averageScore = totalParticipants > 0
-    ? sortedResults.reduce((acc, curr) => acc + curr.score, 0) / totalParticipants
+    ? results.reduce((acc, curr) => acc + curr.score, 0) / totalParticipants
     : 0;
 
   return (
     <Container maxWidth="md">
-      <Box 
-        sx={{ 
-          mt: 6,
-          mb: 8,
-          animation: 'fadeIn 0.6s ease-out'
-        }}
-      >
+      <Box sx={{ mt: 6, mb: 8 }}>
         <Typography 
           variant="h2" 
           gutterBottom
           sx={{
-            background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+            background: theme.palette.gradient.primary,
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             textAlign: 'center',
@@ -139,43 +128,35 @@ const QuizResults = () => {
         <Typography 
           variant="h5" 
           color="text.secondary" 
-          sx={{ 
-            mb: 6,
-            textAlign: 'center'
-          }}
+          sx={{ mb: 6, textAlign: 'center' }}
         >
           {quiz.title}
         </Typography>
 
         <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={4}>
-            <Card
-              sx={{
-                background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
-                borderRadius: 2,
-                boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
-                height: '100%',
-                transition: 'transform 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                }
-              }}
-            >
+          <Grid item xs={12} sm={6} md={4}>
+            <Card sx={{
+              background: theme.palette.gradient.background,
+              borderRadius: 2,
+              boxShadow: theme.shadows[4],
+              height: '100%',
+              transition: 'transform 0.2s',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+              }
+            }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography 
                   color="primary" 
                   gutterBottom
-                  sx={{ 
-                    fontSize: '1.1rem',
-                    fontWeight: 500
-                  }}
+                  sx={{ fontSize: '1.1rem', fontWeight: 500 }}
                 >
                   Total Participants
                 </Typography>
                 <Typography 
                   variant="h3"
                   sx={{
-                    background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+                    background: theme.palette.gradient.primary,
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     fontWeight: 600
@@ -186,34 +167,80 @@ const QuizResults = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={4}>
-            <Card
-              sx={{
-                background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
-                borderRadius: 2,
-                boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
-                height: '100%',
-                transition: 'transform 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                }
-              }}
-            >
+          <Grid item xs={12} sm={6} md={4}>
+            <Card sx={{
+              background: theme.palette.gradient.background,
+              borderRadius: 2,
+              boxShadow: theme.shadows[4],
+              height: '100%',
+              transition: 'transform 0.2s',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+              }
+            }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography 
                   color="primary" 
                   gutterBottom
                   sx={{ 
                     fontSize: '1.1rem',
-                    fontWeight: 500
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
                   }}
+                >
+                  <TrophyIcon /> Top Player
+                </Typography>
+                {results.length > 0 ? (
+                  <>
+                    <Typography 
+                      variant="h5"
+                      sx={{
+                        background: theme.palette.gradient.primary,
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        fontWeight: 600,
+                        mb: 1
+                      }}
+                    >
+                      {results[0].player.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Combined Score: {results[0].combinedScore.toFixed(1)}
+                    </Typography>
+                  </>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No players yet
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <Card sx={{
+              background: theme.palette.gradient.background,
+              borderRadius: 2,
+              boxShadow: theme.shadows[4],
+              height: '100%',
+              transition: 'transform 0.2s',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+              }
+            }}>
+              <CardContent sx={{ p: 3 }}>
+                <Typography 
+                  color="primary" 
+                  gutterBottom
+                  sx={{ fontSize: '1.1rem', fontWeight: 500 }}
                 >
                   Average Score
                 </Typography>
                 <Typography 
                   variant="h3"
                   sx={{
-                    background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+                    background: theme.palette.gradient.primary,
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     fontWeight: 600
@@ -224,67 +251,40 @@ const QuizResults = () => {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={4}>
-            <Card
-              sx={{
-                background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
-                borderRadius: 2,
-                boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
-                height: '100%',
-                transition: 'transform 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                }
-              }}
-            >
-              <CardContent sx={{ p: 3 }}>
-                <Typography 
-                  color="primary" 
-                  gutterBottom
-                  sx={{ 
-                    fontSize: '1.1rem',
-                    fontWeight: 500
-                  }}
-                >
-                  Total Questions
-                </Typography>
-                <Typography 
-                  variant="h3"
-                  sx={{
-                    background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    fontWeight: 600
-                  }}
-                >
-                  {quiz.questions.length}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
         </Grid>
 
-        <Paper 
+        <Typography 
+          variant="h5" 
           sx={{ 
-            mt: 4,
-            borderRadius: 2,
-            boxShadow: '0 4px 20px rgba(0,51,141,0.12)',
-            background: 'linear-gradient(135deg, #ffffff 0%, #f8faff 100%)',
-            overflow: 'hidden'
+            mb: 3,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            color: theme.palette.primary.main
           }}
         >
+          <TrophyIcon /> Leaderboard
+        </Typography>
+
+        <Paper sx={{ 
+          borderRadius: 2,
+          boxShadow: theme.shadows[4],
+          background: theme.palette.gradient.background,
+          overflow: 'hidden'
+        }}>
           <TableContainer>
             <Table>
               <TableHead>
-                <TableRow sx={{ background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)' }}>
+                <TableRow sx={{ background: theme.palette.gradient.primary }}>
                   <TableCell sx={{ color: 'white', fontWeight: 600 }}>Rank</TableCell>
                   <TableCell sx={{ color: 'white', fontWeight: 600 }}>Player</TableCell>
                   <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Score</TableCell>
-                  <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Percentage</TableCell>
+                  <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Time Efficiency</TableCell>
+                  <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Combined Rating</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {sortedResults.map((result, index) => (
+                {results.map((result, index) => (
                   <TableRow 
                     key={index}
                     sx={{
@@ -295,9 +295,9 @@ const QuizResults = () => {
                           'linear-gradient(90deg, rgba(205, 127, 50, 0.1) 0%, rgba(205, 127, 50, 0.05) 100%)'
                         ][index]
                       } : {},
-                      transition: 'transform 0.2s, background-color 0.2s',
+                      transition: 'all 0.2s',
                       '&:hover': {
-                        backgroundColor: 'rgba(0,51,141,0.05)',
+                        backgroundColor: theme.palette.action.hover,
                       }
                     }}
                   >
@@ -322,7 +322,7 @@ const QuizResults = () => {
                           variant="body1" 
                           sx={{
                             fontWeight: index < 3 ? 600 : 400,
-                            color: index < 3 ? '#00338D' : 'inherit'
+                            color: index < 3 ? theme.palette.primary.main : 'inherit'
                           }}
                         >
                           {index + 1}
@@ -331,16 +331,64 @@ const QuizResults = () => {
                     </TableCell>
                     <TableCell>{result.player.name}</TableCell>
                     <TableCell align="right">
-                      {result.score} / {quiz.questions.length}
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                        <Typography>
+                          {result.score} / {quiz.questions.length}
+                        </Typography>
+                        <Typography 
+                          variant="caption" 
+                          sx={{ 
+                            color: 'text.secondary',
+                            backgroundColor: theme.palette.action.hover,
+                            px: 1,
+                            py: 0.5,
+                            borderRadius: 1
+                          }}
+                        >
+                          {Math.round((result.score / quiz.questions.length) * 100)}%
+                        </Typography>
+                      </Box>
                     </TableCell>
                     <TableCell align="right">
-                      {Math.round((result.score / quiz.questions.length) * 100)}%
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {formatTime(result.averageResponseTime)}
+                        </Typography>
+                        <Typography 
+                          variant="body2"
+                          sx={{ 
+                            backgroundColor: theme.palette.action.hover,
+                            px: 1,
+                            py: 0.5,
+                            borderRadius: 1,
+                            fontWeight: 500
+                          }}
+                        >
+                          {result.timeEfficiency}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography 
+                        sx={{ 
+                          display: 'inline-block',
+                          background: theme.palette.gradient.primary,
+                          color: 'white',
+                          px: 2,
+                          py: 0.5,
+                          borderRadius: 1,
+                          minWidth: 60,
+                          textAlign: 'center'
+                        }}
+                      >
+                        {result.combinedScore.toFixed(1)}
+                      </Typography>
                     </TableCell>
                   </TableRow>
                 ))}
-                {sortedResults.length === 0 && (
+                {results.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} align="center">
+                    <TableCell colSpan={5} align="center">
                       No results yet
                     </TableCell>
                   </TableRow>

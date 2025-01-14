@@ -5,6 +5,7 @@ export interface IQuestion {
   text: string;
   options: string[];
   correctAnswer: number;
+  timer: number;  // Time limit in seconds
 }
 
 export interface IQuiz extends Document {
@@ -33,6 +34,13 @@ const QuestionSchema = new Schema({
     type: Number, 
     required: true,
     min: 0
+  },
+  timer: {
+    type: Number,
+    required: true,
+    min: 5,  // Minimum 5 seconds
+    max: 300,  // Maximum 5 minutes
+    default: 30  // Default 30 seconds
   }
 }, { 
   _id: false 

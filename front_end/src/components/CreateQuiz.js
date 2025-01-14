@@ -3,41 +3,33 @@ import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
+  Container,
   TextField,
   Typography,
-  Container,
-  IconButton,
   Paper,
-  Grid,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Snackbar,
+  IconButton,
+  useTheme,
+  CircularProgress
 } from '@mui/material';
-import { Add as AddIcon, Delete as DeleteIcon, ContentCopy as ContentCopyIcon } from '@mui/icons-material';
+import { Add as AddIcon, Remove as RemoveIcon } from '@mui/icons-material';
 import { api } from '../services/api';
 
 const CreateQuiz = () => {
+  const theme = useTheme();
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
-  const [questions, setQuestions] = useState([
-    {
-      text: '',
-      options: ['', '', '', ''],
-      correctAnswer: 0
-    }
-  ]);
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [quizId, setQuizId] = useState('');
-  const [showCopySnackbar, setShowCopySnackbar] = useState(false);
+  const [questions, setQuestions] = useState([{
+    text: '',
+    options: ['', '', '', ''],
+    correctAnswer: 0,
+    timer: 30
+  }]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleQuestionChange = (index, field, value) => {
     const newQuestions = [...questions];
-    newQuestions[index] = {
-      ...newQuestions[index],
-      [field]: value
-    };
+    newQuestions[index] = { ...newQuestions[index], [field]: value };
     setQuestions(newQuestions);
   };
 
@@ -47,15 +39,19 @@ const CreateQuiz = () => {
     setQuestions(newQuestions);
   };
 
+  const handleCorrectAnswerChange = (questionIndex, optionIndex) => {
+    const newQuestions = [...questions];
+    newQuestions[questionIndex].correctAnswer = optionIndex;
+    setQuestions(newQuestions);
+  };
+
   const addQuestion = () => {
-    setQuestions([
-      ...questions,
-      {
-        text: '',
-        options: ['', '', '', ''],
-        correctAnswer: 0
-      }
-    ]);
+    setQuestions([...questions, {
+      text: '',
+      options: ['', '', '', ''],
+      correctAnswer: 0,
+      timer: 30
+    }]);
   };
 
   const removeQuestion = (index) => {
@@ -67,112 +63,120 @@ const CreateQuiz = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
+
     try {
       const quiz = await api.createQuiz(title, questions);
-      setQuizId(quiz.id);
-      setShowSuccessDialog(true);
-    } catch (error) {
-      console.error('Error creating quiz:', error);
+      navigate(`/quiz/${quiz.id}/share`);
+    } catch (err) {
+      setError('Failed to create quiz. Please try again.');
+      setLoading(false);
     }
   };
 
-  const handleCopyLink = () => {
-    const quizLink = `${window.location.origin}/quiz/${quizId}`;
-    navigator.clipboard.writeText(quizLink);
-    setShowCopySnackbar(true);
-  };
-
-  const handleCloseDialog = () => {
-    setShowSuccessDialog(false);
-    navigate(`/quiz/${quizId}`);
+  const isValid = () => {
+    return title.trim() !== '' && 
+           questions.every(q => 
+             q.text.trim() !== '' && 
+             q.options.every(opt => opt.trim() !== '') &&
+             q.timer >= 5 && q.timer <= 300
+           );
   };
 
   return (
-    <Container maxWidth="md" sx={{ pb: 8 }}>
-      <Box 
-        sx={{ 
-          mt: 6, 
-          mb: 6,
-          animation: 'fadeIn 0.6s ease-out'
-        }}
-      >
+    <Container maxWidth="md">
+      <Box sx={{ mt: 6, mb: 8 }}>
         <Typography 
           variant="h2" 
-          component="h1" 
           gutterBottom
           sx={{
-            background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
+            background: theme.palette.gradient.primary,
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
-            mb: 4,
-            textAlign: 'center'
+            textAlign: 'center',
+            mb: 6
           }}
         >
-          Create Your Quiz
+          Create Quiz
         </Typography>
-        <Typography 
-          variant="h6" 
-          color="text.secondary" 
-          sx={{ mb: 6, textAlign: 'center' }}
-        >
-          Design an engaging quiz with multiple choice questions
-        </Typography>
+
         <form onSubmit={handleSubmit}>
-          <TextField
-            fullWidth
-            label="Quiz Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            margin="normal"
-            required
-          />
+          <Paper 
+            sx={{ 
+              p: 4,
+              mb: 4,
+              borderRadius: 2,
+              boxShadow: theme.shadows[4],
+              background: theme.palette.gradient.background,
+            }}
+          >
+            <TextField
+              fullWidth
+              label="Quiz Title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              margin="normal"
+              variant="outlined"
+              required
+            />
+          </Paper>
+
           {questions.map((question, questionIndex) => (
             <Paper 
-              key={questionIndex} 
+              key={questionIndex}
               sx={{ 
-                p: 4, 
-                mt: 3,
+                p: 4,
+                mb: 4,
                 borderRadius: 2,
-                boxShadow: '0 4px 12px rgba(0,51,141,0.08)',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 24px rgba(0,51,141,0.12)',
-                },
-                position: 'relative',
-                overflow: 'hidden',
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '4px',
-                  height: '100%',
-                  background: 'linear-gradient(180deg, #00338D 0%, #00A0DC 100%)',
-                }
+                boxShadow: theme.shadows[4],
+                background: theme.palette.gradient.background,
+                position: 'relative'
               }}
             >
-              <Grid container spacing={2}>
-                <Grid item xs={11}>
-                  <TextField
-                    fullWidth
-                    label={`Question ${questionIndex + 1}`}
-                    value={question.text}
-                    onChange={(e) => handleQuestionChange(questionIndex, 'text', e.target.value)}
-                    margin="normal"
-                    required
-                  />
-                </Grid>
-                <Grid item xs={1}>
-                  <IconButton
-                    onClick={() => removeQuestion(questionIndex)}
-                    disabled={questions.length === 1}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </Grid>
+              <Box sx={{ position: 'absolute', top: 16, right: 16 }}>
+                <IconButton 
+                  onClick={() => removeQuestion(questionIndex)}
+                  disabled={questions.length === 1}
+                  sx={{ color: theme.palette.text.secondary }}
+                >
+                  <RemoveIcon />
+                </IconButton>
+              </Box>
+
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  mb: 3,
+                  color: theme.palette.primary.main,
+                  fontWeight: 500
+                }}
+              >
+                Question {questionIndex + 1}
+              </Typography>
+
+              <TextField
+                fullWidth
+                label="Question Text"
+                value={question.text}
+                onChange={(e) => handleQuestionChange(questionIndex, 'text', e.target.value)}
+                margin="normal"
+                variant="outlined"
+                required
+              />
+
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="subtitle1" sx={{ mb: 2 }}>Options:</Typography>
                 {question.options.map((option, optionIndex) => (
-                  <Grid item xs={12} sm={6} key={optionIndex}>
+                  <Box 
+                    key={optionIndex} 
+                    sx={{ 
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2,
+                      mb: 2
+                    }}
+                  >
                     <TextField
                       fullWidth
                       label={`Option ${optionIndex + 1}`}
@@ -180,141 +184,91 @@ const CreateQuiz = () => {
                       onChange={(e) => handleOptionChange(questionIndex, optionIndex, e.target.value)}
                       required
                     />
-                  </Grid>
+                    <Button
+                      variant={question.correctAnswer === optionIndex ? "contained" : "outlined"}
+                      onClick={() => handleCorrectAnswerChange(questionIndex, optionIndex)}
+                      sx={{
+                        minWidth: 120,
+                        background: question.correctAnswer === optionIndex 
+                          ? theme.palette.gradient.primary 
+                          : 'transparent',
+                        '&:hover': {
+                          background: question.correctAnswer === optionIndex 
+                            ? theme.palette.gradient.hover 
+                            : theme.palette.action.hover
+                        }
+                      }}
+                    >
+                      {question.correctAnswer === optionIndex ? "Correct ✓" : "Mark Correct"}
+                    </Button>
+                  </Box>
                 ))}
-                <Grid item xs={12}>
-                  <TextField
-                    select
-                    fullWidth
-                    label="Correct Answer"
-                    value={question.correctAnswer}
-                    onChange={(e) => handleQuestionChange(questionIndex, 'correctAnswer', Number(e.target.value))}
-                    SelectProps={{
-                      native: true
-                    }}
-                    required
-                  >
-                    {question.options.map((_, index) => (
-                      <option key={index} value={index}>
-                        Option {index + 1}
-                      </option>
-                    ))}
-                  </TextField>
-                </Grid>
-              </Grid>
+              </Box>
+
+              <TextField
+                type="number"
+                label="Timer (seconds)"
+                value={question.timer}
+                onChange={(e) => handleQuestionChange(questionIndex, 'timer', Math.max(5, Math.min(300, parseInt(e.target.value) || 30)))}
+                InputProps={{ inputProps: { min: 5, max: 300 } }}
+                helperText="Time limit: 5-300 seconds"
+                sx={{ mt: 2 }}
+              />
             </Paper>
           ))}
-          <Box sx={{ 
-            mt: 4, 
-            display: 'flex', 
-            gap: 2,
-            justifyContent: 'center'
-          }}>
+
+          <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
             <Button
-              variant="outlined"
               startIcon={<AddIcon />}
               onClick={addQuestion}
-              sx={{
-                borderWidth: '2px',
+              variant="outlined"
+              sx={{ 
+                flex: 1,
+                py: 1.5,
+                borderColor: theme.palette.primary.main,
+                color: theme.palette.primary.main,
                 '&:hover': {
-                  borderWidth: '2px',
-                  background: 'rgba(0,51,141,0.05)',
+                  borderColor: theme.palette.primary.dark,
+                  backgroundColor: theme.palette.action.hover
                 }
               }}
             >
               Add Question
             </Button>
+
             <Button
               type="submit"
               variant="contained"
-              color="primary"
-              disabled={!title || questions.some(q => !q.text || q.options.some(o => !o))}
-              sx={{
-                background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
-                px: 4,
+              disabled={!isValid() || loading}
+              sx={{ 
+                flex: 2,
+                py: 1.5,
+                background: theme.palette.gradient.primary,
                 '&:hover': {
-                  background: 'linear-gradient(90deg, #002266 0%, #007AA6 100%)',
+                  background: theme.palette.gradient.hover,
                 },
                 '&.Mui-disabled': {
-                  background: '#e0e0e0',
+                  background: theme.palette.action.disabledBackground,
                 }
               }}
             >
-              Create Quiz
+              {loading ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={20} sx={{ color: 'white' }} />
+                  <span>Creating Quiz...</span>
+                </Box>
+              ) : (
+                'Create Quiz'
+              )}
             </Button>
           </Box>
-        </form>
 
-        <Dialog 
-          open={showSuccessDialog} 
-          onClose={handleCloseDialog}
-          PaperProps={{
-            sx: {
-              borderRadius: 2,
-              boxShadow: '0 8px 32px rgba(0,51,141,0.15)',
-            }
-          }}
-        >
-          <DialogTitle sx={{ 
-            background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
-            color: 'white',
-            py: 2
-          }}>
-            Quiz Created Successfully! 🎉
-          </DialogTitle>
-          <DialogContent>
-            <Typography variant="body1" gutterBottom>
-              Your quiz has been created. Share this link with others to let them take the quiz:
+          {error && (
+            <Typography color="error" sx={{ mt: 2, textAlign: 'center' }}>
+              {error}
             </Typography>
-              <Paper
-                sx={{
-                  p: 2,
-                  mt: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: 'rgba(0,51,141,0.05)',
-                  border: '1px solid rgba(0,51,141,0.1)',
-                  borderRadius: 1
-                }}
-            >
-              <Typography variant="body2" sx={{ wordBreak: 'break-all' }}>
-                {`${window.location.origin}/quiz/${quizId}`}
-              </Typography>
-              <IconButton onClick={handleCopyLink} size="small">
-                <ContentCopyIcon />
-              </IconButton>
-            </Paper>
-          </DialogContent>
-          <DialogActions>
-            <Button 
-              onClick={handleCloseDialog}
-              sx={{
-                background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
-                color: 'white',
-                px: 3,
-                '&:hover': {
-                  background: 'linear-gradient(90deg, #002266 0%, #007AA6 100%)',
-                }
-              }}
-            >
-              View Quiz
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        <Snackbar
-          open={showCopySnackbar}
-          autoHideDuration={3000}
-          onClose={() => setShowCopySnackbar(false)}
-          message="Quiz link copied to clipboard! 📋"
-          sx={{
-            '& .MuiSnackbarContent-root': {
-              background: 'linear-gradient(90deg, #00338D 0%, #00A0DC 100%)',
-              borderRadius: 2
-            }
-          }}
-        />
+          )}
+        </form>
       </Box>
     </Container>
   );
