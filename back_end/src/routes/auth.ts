@@ -1,192 +1,94 @@
-import express, { Request, Response } from 'express';
-import { body, validationResult } from 'express-validator';
+import express from 'express';
 import jwt from 'jsonwebtoken';
-import User from '../models/User';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+import Login from '../models/Login';
 
 const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// Validation middleware
-const signupValidation = [
-  body('email')
-    .isEmail()
-    .withMessage('Please enter a valid email')
-    .normalizeEmail(),
-  body('password')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters long')
-];
-
-// Signin validation middleware
-const signinValidation = [
-  body('email')
-    .isEmail()
-    .withMessage('Please enter a valid email')
-    .normalizeEmail(),
-  body('password')
-    .notEmpty()
-    .withMessage('Password is required')
-];
-
-// Signin route
-router.post('/signin', signinValidation, async (req: Request, res: Response) => {
-  console.log('Signin attempt for email:', req.body.email);
+// Sign Up
+router.post('/signup', async (req, res) => {
   try {
-    // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('Signin validation failed:', errors.array());
-      return res.status(400).json({ 
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
-    }
-
     const { email, password } = req.body;
 
-    // Find user by email
-    console.log('Looking up user with email:', email);
-    const user = await User.findOne({ email });
-    if (!user) {
-      console.log('User not found with email:', email);
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
+    // Check if user already exists
+    const existingUser = await Login.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already registered' });
     }
 
-    // Check password
-    console.log('Checking password for user:', email);
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      console.log('Invalid password for user:', email);
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
+    // Create new user
+    const user = new Login({ email, password });
+    await user.save();
 
     // Generate JWT token
-    console.log('Generating token for user:', email);
     const token = jwt.sign(
-      { userId: user._id },
+      { userId: user._id, email: user.email },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    console.log('Signin successful for user:', email);
-    // Return success with token
-    res.json({
-      success: true,
-      message: 'Signed in successfully',
-      token
-    });
-
-  } catch (error) {
-    console.error('Signin error:', error);
-    console.error('Error details:', {
-      name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    res.status(500).json({
-      success: false,
-      message: 'An error occurred during sign in'
-    });
+    res.status(201).json({ token, userId: user._id });
+  } catch (error: any) {
+    console.error('Signup error:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        message: 'Validation error', 
+        errors: Object.values(error.errors).map((err: any) => err.message) 
+      });
+    }
+    res.status(500).json({ message: 'Error creating user' });
   }
 });
 
-// Signup route
-router.post('/signup', signupValidation, async (req: Request, res: Response) => {
-  console.log('Received signup request:', {
-    body: req.body,
-    headers: req.headers
-  });
-  
+// Sign In
+router.post('/signin', async (req, res) => {
   try {
-    // Check for validation errors
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      console.log('Signup validation failed:', errors.array());
-      return res.status(400).json({ 
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array() 
-      });
-    }
-
     const { email, password } = req.body;
 
-    // Check if user already exists
-    console.log('Checking if user exists:', email);
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      console.log('User already exists:', email);
-      return res.status(400).json({
-        success: false,
-        message: 'Email already registered'
-      });
+    // Find user
+    const user = await Login.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Create new user
-    console.log('Creating new user:', email);
-    const user = new User({
-      email,
-      password
-    });
-
-    try {
-      console.log('Attempting to save user to database:', email);
-      await user.save();
-      console.log('User saved successfully:', email);
-
-      // Generate JWT token for immediate login
-      console.log('Generating token for new user:', email);
-      const token = jwt.sign(
-        { userId: user._id },
-        JWT_SECRET,
-        { expiresIn: '24h' }
-      );
-
-      console.log('Signup successful for user:', email);
-      // Return success with token
-      res.status(201).json({
-        success: true,
-        message: 'User registered successfully',
-        token
-      });
-    } catch (error: any) {
-      console.error('Error saving user:', error);
-      console.error('Error details:', {
-        name: error.name,
-        message: error.message,
-        code: error.code,
-        stack: error.stack
-      });
-      
-      if (error.code === 11000) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email already registered'
-        });
-      }
-      
-      throw error;
+    // Check password
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
 
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({ token, userId: user._id });
   } catch (error) {
-    console.error('Signup error:', error);
-    console.error('Error details:', {
-      name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    res.status(500).json({
-      success: false,
-      message: 'An error occurred during registration'
-    });
+    console.error('Signin error:', error);
+    res.status(500).json({ message: 'Error signing in' });
+  }
+});
+
+// Verify Token
+router.post('/verify', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+    const user = await Login.findById(decoded.userId);
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+
+    res.json({ userId: user._id, email: user.email });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(401).json({ message: 'Invalid token' });
   }
 });
 

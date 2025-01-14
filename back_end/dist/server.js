@@ -20,18 +20,23 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const Quiz_1 = __importDefault(require("./models/Quiz"));
 const Player_1 = __importDefault(require("./models/Player"));
 const QuizResponse_1 = __importDefault(require("./models/QuizResponse"));
+const auth_1 = __importDefault(require("./routes/auth"));
+const auth_2 = require("./middleware/auth");
 const app = (0, express_1.default)();
 // CORS configuration
+// Middleware
 app.use((0, cors_1.default)({
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
 }));
 app.use(express_1.default.json());
+// Routes
+app.use('/api/auth', auth_1.default);
 // Connect to MongoDB
 (0, db_1.connectDB)();
-// Create a new quiz
-app.post('/api/quizzes', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+// Create a new quiz (protected route)
+app.post('/api/quizzes', auth_2.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         console.log('Received request to create quiz');
         console.log('Request headers:', req.headers);

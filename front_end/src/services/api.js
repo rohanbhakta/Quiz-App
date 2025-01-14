@@ -12,10 +12,50 @@ const axiosInstance = axios.create({
   httpsAgent: null
 });
 
+// Add token to requests if it exists
+axiosInstance.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Log the actual baseURL being used
 console.log('API Base URL:', config.API_URL);
 
 export const api = {
+  // Auth methods
+  signUp: async (email, password) => {
+    try {
+      const response = await axiosInstance.post('/auth/signup', { email, password });
+      return response.data;
+    } catch (error) {
+      console.error('Signup failed:', error.response?.data);
+      throw error;
+    }
+  },
+
+  signIn: async (email, password) => {
+    try {
+      const response = await axiosInstance.post('/auth/signin', { email, password });
+      return response.data;
+    } catch (error) {
+      console.error('Signin failed:', error.response?.data);
+      throw error;
+    }
+  },
+
+  verifyToken: async () => {
+    try {
+      const response = await axiosInstance.post('/auth/verify');
+      return response.data;
+    } catch (error) {
+      console.error('Token verification failed:', error.response?.data);
+      throw error;
+    }
+  },
+
   // Create a new quiz
   createQuiz: async (title, questions) => {
     try {

@@ -105,43 +105,45 @@ const LandingPage = () => {
                   gap: 2,
                   flexDirection: { xs: 'column', sm: 'row' }
                 }}>
-                  <Button
-                    variant="contained"
-                    size="large"
-                    startIcon={<AddIcon />}
-                    onClick={() => navigate('/create')}
-                    sx={{ 
-                      py: 2,
-                      px: 4,
-                      fontSize: '1.1rem',
-                      backgroundColor: 'white',
-                      color: theme.palette.primary.main,
-                      '&:hover': {
-                        backgroundColor: 'rgba(255,255,255,0.9)',
-                      }
-                    }}
-                  >
-                    Create Quiz
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    size="large"
-                    startIcon={<PlayIcon />}
-                    onClick={() => navigate('/join')}
-                    sx={{ 
-                      py: 2,
-                      px: 4,
-                      fontSize: '1.1rem',
-                      borderColor: 'white',
-                      color: 'white',
-                      '&:hover': {
-                        borderColor: 'rgba(255,255,255,0.9)',
-                        backgroundColor: 'rgba(255,255,255,0.1)'
-                      }
-                    }}
-                  >
-                    Join Quiz
-                  </Button>
+                  <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                    <Button
+                      variant="contained"
+                      size="large"
+                      startIcon={<AddIcon />}
+                      onClick={() => navigate('/signin')}
+                      sx={{ 
+                        py: 2,
+                        px: 4,
+                        fontSize: '1.1rem',
+                        backgroundColor: 'white',
+                        color: theme.palette.primary.main,
+                        '&:hover': {
+                          backgroundColor: 'rgba(255,255,255,0.9)',
+                        }
+                      }}
+                    >
+                      Sign In to Create
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="large"
+                      startIcon={<PlayIcon />}
+                      onClick={() => navigate('/signup')}
+                      sx={{ 
+                        py: 2,
+                        px: 4,
+                        fontSize: '1.1rem',
+                        borderColor: 'white',
+                        color: 'white',
+                        '&:hover': {
+                          borderColor: 'rgba(255,255,255,0.9)',
+                          backgroundColor: 'rgba(255,255,255,0.1)'
+                        }
+                      }}
+                    >
+                      Sign Up
+                    </Button>
+                  </Box>
                 </Box>
               </Box>
             </Grid>
@@ -289,7 +291,7 @@ const LandingPage = () => {
                 }
               }}
             >
-              Get Started
+              Sign In to Create Quiz
             </Button>
           </Box>
         </Container>

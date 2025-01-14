@@ -36,6 +36,7 @@ const PlayQuiz = () => {
   const [questionStartTime, setQuestionStartTime] = useState(null);
   const [showTimeWarning, setShowTimeWarning] = useState(false);
   const audioRef = useRef(null);
+  const timerRef = useRef({ intervalId: null, startTime: null });
 
   // Audio setup for timer sound
   useEffect(() => {
@@ -86,7 +87,7 @@ const PlayQuiz = () => {
     setSubmitting(true);
     try {
       if (id && playerId) {
-        const result = await api.submitAnswers(id, playerId, finalAnswers);
+        await api.submitAnswers(id, playerId, finalAnswers);
         navigate(`/quiz/${id}/results`);
       }
     } catch (err) {
@@ -97,11 +98,22 @@ const PlayQuiz = () => {
 
   const handleAnswerSelect = useCallback(async (questionId, selectedOption, responseTime = null) => {
     try {
+      // Calculate response time in milliseconds
       const currentTime = Date.now();
       if (!responseTime) {
         responseTime = currentTime - questionStartTime;
       }
 
+      console.log('Answer selection:', {
+        questionId,
+        selectedOption,
+        responseTime,
+        startTime: questionStartTime,
+        endTime: currentTime,
+        currentQuestion
+      });
+
+      // Validate response time
       const maxAllowedTime = quiz.questions[currentQuestion].timer * 1000;
       const validatedTime = Math.min(responseTime, maxAllowedTime);
 
@@ -123,9 +135,11 @@ const PlayQuiz = () => {
   }, [answers, currentQuestion, quiz, questionStartTime, handleSubmit]);
 
   const handleTimeUp = useCallback(() => {
+    console.log('Time up for question:', currentQuestion);
     if (quiz && currentQuestion < quiz.questions.length) {
       const question = quiz.questions[currentQuestion];
       const maxTime = question.timer * 1000;
+      console.log('Auto-submitting answer with max time:', maxTime);
       handleAnswerSelect(question.id, -1, maxTime);
     }
   }, [quiz, currentQuestion, handleAnswerSelect]);
@@ -139,7 +153,7 @@ const PlayQuiz = () => {
             ...quizData,
             questions: quizData.questions.map(q => ({
               ...q,
-              timer: q.timer || 30
+              timer: Math.min(Math.max(q.timer || 30, 5), 300)
             }))
           };
           setQuiz(validatedQuizData);
@@ -155,19 +169,21 @@ const PlayQuiz = () => {
     fetchQuiz();
   }, [id]);
 
-  // Timer state management
-  const timerRef = useRef({ intervalId: null, startTime: null });
-
   // Initialize timer when question changes
   useEffect(() => {
     const startTimer = () => {
       if (!quiz || !playerId || currentQuestion >= quiz.questions.length) return;
 
+      // Clear existing timer
       if (timerRef.current.intervalId) {
         clearInterval(timerRef.current.intervalId);
       }
 
-      const duration = Math.min(Math.max(quiz.questions[currentQuestion].timer || 30, 5), 300);
+      // Get timer duration from question
+      const duration = quiz.questions[currentQuestion].timer;
+      console.log(`Starting timer for question ${currentQuestion + 1}:`, duration);
+
+      // Set initial state
       const startTime = Date.now();
       timerRef.current = { intervalId: null, startTime };
 
@@ -175,6 +191,7 @@ const PlayQuiz = () => {
       setQuestionStartTime(startTime);
       setShowTimeWarning(false);
 
+      // Start countdown with higher resolution
       const intervalId = setInterval(() => {
         const now = Date.now();
         const elapsed = Math.floor((now - startTime) / 1000);
@@ -191,13 +208,14 @@ const PlayQuiz = () => {
             audioRef.current.playBeep(remaining);
           }
         }
-      }, 50);
+      }, 50); // Update every 50ms for smoother countdown
 
       timerRef.current.intervalId = intervalId;
     };
 
     startTimer();
 
+    // Cleanup
     return () => {
       if (timerRef.current.intervalId) {
         clearInterval(timerRef.current.intervalId);

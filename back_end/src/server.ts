@@ -6,10 +6,13 @@ import mongoose from 'mongoose';
 import Quiz from './models/Quiz';
 import Player from './models/Player';
 import QuizResponse from './models/QuizResponse';
+import authRoutes from './routes/auth';
+import { authMiddleware } from './middleware/auth';
 
 const app = express();
 
 // CORS configuration
+// Middleware
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -17,11 +20,14 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Routes
+app.use('/api/auth', authRoutes);
+
 // Connect to MongoDB
 connectDB();
 
-// Create a new quiz
-app.post('/api/quizzes', async (req, res) => {
+// Create a new quiz (protected route)
+app.post('/api/quizzes', authMiddleware, async (req, res) => {
   try {
     console.log('Received request to create quiz');
     console.log('Request headers:', req.headers);

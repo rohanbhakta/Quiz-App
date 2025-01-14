@@ -19,7 +19,7 @@ import {
   useTheme
 } from '@mui/material';
 import { api } from '../services/api';
-import { Speed as SpeedIcon, EmojiEvents as TrophyIcon } from '@mui/icons-material';
+import { EmojiEvents as TrophyIcon } from '@mui/icons-material';
 
 const QuizResults = () => {
   const theme = useTheme();

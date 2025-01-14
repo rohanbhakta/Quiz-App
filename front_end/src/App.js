@@ -8,6 +8,10 @@ import PlayQuiz from './components/PlayQuiz';
 import QuizResults from './components/QuizResults';
 import ShareQuiz from './components/ShareQuiz';
 import ThemeToggle from './components/ThemeToggle';
+import SignIn from './components/SignIn';
+import SignUp from './components/SignUp';
+import ProtectedRoute from './components/ProtectedRoute';
+import Header from './components/Header';
 import './App.css';
 
 function App() {
@@ -38,9 +42,16 @@ function App() {
       }}>
         <Router>
           <ThemeToggle onToggle={toggleTheme} />
+          <Header />
           <Routes>
             <Route path="/" element={<LandingPage />} />
-            <Route path="/create" element={<CreateQuiz />} />
+            <Route path="/signin" element={<SignIn />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/create" element={
+              <ProtectedRoute>
+                <CreateQuiz />
+              </ProtectedRoute>
+            } />
             <Route path="/quiz/:id" element={<PlayQuiz />} />
             <Route path="/quiz/:id/results" element={<QuizResults />} />
             <Route path="/quiz/:id/share" element={<ShareQuiz />} />
