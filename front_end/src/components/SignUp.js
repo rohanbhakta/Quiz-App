@@ -28,6 +28,26 @@ const SignUp = () => {
     e.preventDefault();
     setError('');
 
+    // Log sign-up attempt in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Sign-up attempt:', {
+        email,
+        username,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Validate input
+    if (!email.trim() || !username.trim() || !password.trim()) {
+      setError('All fields are required');
+      return;
+    }
+
+    if (!email.includes('@') || !email.includes('.')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -46,12 +66,45 @@ const SignUp = () => {
     setLoading(true);
 
     try {
-      const { token, username: savedUsername } = await api.signUp(email, username, password);
+      // Attempt sign up
+      const response = await api.signUp(email.trim(), username.trim(), password);
+      const { token, username: savedUsername } = response;
+
+      // Log successful sign-up
+      console.log('Sign-up successful:', {
+        username: savedUsername,
+        timestamp: new Date().toISOString()
+      });
+
+      // Store auth data
       localStorage.setItem('token', token);
       localStorage.setItem('username', savedUsername);
+
+      // Navigate to dashboard
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to sign up');
+      // Enhanced error logging
+      console.error('Sign-up error:', {
+        error: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        timestamp: new Date().toISOString()
+      });
+
+      // Set user-friendly error message
+      if (err.response?.status === 400) {
+        if (err.response.data?.message?.includes('email')) {
+          setError('This email is already registered');
+        } else if (err.response.data?.message?.includes('username')) {
+          setError('This username is already taken');
+        } else {
+          setError(err.response.data?.message);
+        }
+      } else if (!navigator.onLine) {
+        setError('Please check your internet connection');
+      } else {
+        setError(err.response?.data?.message || 'Failed to sign up. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -110,10 +163,19 @@ const SignUp = () => {
               label="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              onBlur={(e) => setUsername(e.target.value.trim())}
               margin="normal"
               required
               disabled={loading}
-              helperText="Username must be at least 3 characters long"
+              error={!!error && error.toLowerCase().includes('username')}
+              helperText={
+                error && error.toLowerCase().includes('username')
+                  ? error
+                  : 'Username must be at least 3 characters long'
+              }
+              InputProps={{
+                'aria-label': 'Username'
+              }}
             />
 
             <TextField
@@ -122,9 +184,15 @@ const SignUp = () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={(e) => setEmail(e.target.value.trim())}
               margin="normal"
               required
               disabled={loading}
+              error={!!error && error.toLowerCase().includes('email')}
+              helperText={error && error.toLowerCase().includes('email') ? error : ''}
+              InputProps={{
+                'aria-label': 'Email'
+              }}
             />
 
             <TextField

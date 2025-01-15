@@ -30,18 +30,58 @@ const SignIn = () => {
     setError('');
     setLoading(true);
 
+    // Log sign-in attempt in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Sign-in attempt:', {
+        emailOrUsername,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     try {
-      const { token, username } = await api.signIn(emailOrUsername, password);
-      if (rememberMe) {
-        localStorage.setItem('token', token);
-        localStorage.setItem('username', username);
-      } else {
-        sessionStorage.setItem('token', token);
-        sessionStorage.setItem('username', username);
+      // Validate input
+      if (!emailOrUsername.trim() || !password.trim()) {
+        setError('Please enter both email/username and password');
+        setLoading(false);
+        return;
       }
+
+      // Attempt sign in
+      const response = await api.signIn(emailOrUsername.trim(), password);
+      const { token, username } = response;
+
+      // Log successful sign-in
+      console.log('Sign-in successful:', {
+        username,
+        timestamp: new Date().toISOString()
+      });
+
+      // Store auth data
+      const storage = rememberMe ? localStorage : sessionStorage;
+      storage.setItem('token', token);
+      storage.setItem('username', username);
+
+      // Navigate to dashboard
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to sign in');
+      // Enhanced error logging
+      console.error('Sign-in error:', {
+        error: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+        timestamp: new Date().toISOString()
+      });
+
+      // Set user-friendly error message
+      if (err.response?.status === 401) {
+        setError('Invalid email/username or password');
+      } else if (err.response?.status === 404) {
+        setError('Account not found');
+      } else if (!navigator.onLine) {
+        setError('Please check your internet connection');
+      } else {
+        setError(err.response?.data?.message || 'Failed to sign in. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -100,9 +140,15 @@ const SignIn = () => {
               label="Email or Username"
               value={emailOrUsername}
               onChange={(e) => setEmailOrUsername(e.target.value)}
+              onBlur={(e) => setEmailOrUsername(e.target.value.trim())}
               margin="normal"
               required
               disabled={loading}
+              error={!!error && error.toLowerCase().includes('email')}
+              helperText={error && error.toLowerCase().includes('email') ? error : ''}
+              InputProps={{
+                'aria-label': 'Email or Username'
+              }}
             />
 
             <TextField
@@ -111,9 +157,15 @@ const SignIn = () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onBlur={(e) => setPassword(e.target.value.trim())}
               margin="normal"
               required
               disabled={loading}
+              error={!!error && error.toLowerCase().includes('password')}
+              helperText={error && error.toLowerCase().includes('password') ? error : ''}
+              InputProps={{
+                'aria-label': 'Password'
+              }}
             />
 
             <FormControlLabel
