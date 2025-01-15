@@ -8,50 +8,68 @@ const axiosInstance = axios.create({
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   },
-  timeout: 10000
+  timeout: config.API_TIMEOUT,
+  withCredentials: true // Enable CORS credentials
 });
 
-// Log configuration
-console.log('API Configuration:', {
-  baseURL: config.API_URL,
-  headers: axiosInstance.defaults.headers
-});
+// Error handler
+const handleError = (error) => {
+  if (error.response) {
+    // Server responded with error status
+    const message = error.response.data?.message || 'Server error occurred';
+    if (error.response.status === 401) {
+      // Clear auth data on unauthorized
+      localStorage.removeItem(config.AUTH.TOKEN_KEY);
+      localStorage.removeItem(config.AUTH.USERNAME_KEY);
+      sessionStorage.removeItem(config.AUTH.TOKEN_KEY);
+      sessionStorage.removeItem(config.AUTH.USERNAME_KEY);
+      window.location.href = '/signin';
+    }
+    throw new Error(message);
+  } else if (error.request) {
+    // Request made but no response
+    throw new Error('No response from server. Please check your connection.');
+  } else {
+    // Request setup error
+    throw new Error('Failed to make request. Please try again.');
+  }
+};
+
+// Log configuration in development
+if (process.env.NODE_ENV === 'development') {
+  console.log('API Configuration:', {
+    baseURL: config.API_URL,
+    timeout: config.API_TIMEOUT,
+    headers: axiosInstance.defaults.headers
+  });
+}
 
 // Add token to requests if it exists
 axiosInstance.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+  const storage = config.AUTH.STORAGE_TYPE === 'sessionStorage' ? sessionStorage : localStorage;
+  const token = storage.getItem(config.AUTH.TOKEN_KEY);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
-});
+}, handleError);
 
-// Log the actual baseURL being used
-console.log('API Base URL:', config.API_URL);
+// Add response interceptor for error handling
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  handleError
+);
 
 export const api = {
   // Auth methods
   signUp: async (email, username, password) => {
-    try {
-      console.log('Attempting signup with:', { email, username });
-      const response = await axiosInstance.post('/api/auth/signup', { email, username, password });
-      return response.data;
-    } catch (error) {
-      console.error('Signup failed:', error.response?.data);
-      throw error;
-    }
+    const response = await axiosInstance.post('/api/auth/signup', { email, username, password });
+    return response.data;
   },
 
   signIn: async (emailOrUsername, password) => {
-    try {
-      console.log('Attempting signin with:', { emailOrUsername });
-      const response = await axiosInstance.post('/api/auth/signin', { emailOrUsername, password });
-      console.log('Signin response:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Signin failed:', error.response?.data);
-      throw error;
-    }
+    const response = await axiosInstance.post('/api/auth/signin', { emailOrUsername, password });
+    return response.data;
   },
 
   verifyToken: async () => {

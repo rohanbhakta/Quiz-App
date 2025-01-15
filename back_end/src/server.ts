@@ -14,10 +14,13 @@ const app = express();
 
 // CORS configuration
 const corsOptions = {
-  origin: true,
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.FRONTEND_URL || 'https://quiz-app-frontend.vercel.app'
+    : 'http://localhost:3000',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  credentials: true
 };
 
 // Apply CORS middleware
@@ -283,13 +286,12 @@ app.get('/api/quizzes/:id/results', async (req, res) => {
 });
 
 // Start server
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = parseInt(process.env.PORT || '5003', 10);
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-    console.log('CORS enabled for:', corsOptions.origin);
-    console.log('MongoDB connection state:', mongoose.connection.readyState);
-  });
-}
+const PORT = parseInt(process.env.PORT || '5003', 10);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log('Environment:', process.env.NODE_ENV);
+  console.log('CORS enabled for:', corsOptions.origin);
+  console.log('MongoDB connection state:', mongoose.connection.readyState);
+});
 
 export default app;
