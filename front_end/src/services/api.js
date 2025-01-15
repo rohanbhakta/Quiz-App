@@ -6,11 +6,23 @@ const axiosInstance = axios.create({
   baseURL: config.API_URL,
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
+    'Accept': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE,PATCH,OPTIONS',
+    'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept, Authorization'
   },
   timeout: config.API_TIMEOUT,
-  withCredentials: true // Enable CORS credentials
+  withCredentials: false // Disable CORS credentials since we're using token-based auth
 });
+
+// Log configuration in development
+if (process.env.NODE_ENV === 'development') {
+  console.log('API Service Configuration:', {
+    baseURL: config.API_URL,
+    environment: process.env.NODE_ENV,
+    timeout: config.API_TIMEOUT
+  });
+}
 
 // Error handler
 const handleError = (error) => {
@@ -46,18 +58,73 @@ if (process.env.NODE_ENV === 'development') {
 
 // Add token to requests if it exists
 axiosInstance.interceptors.request.use((config) => {
-  const storage = config.AUTH.STORAGE_TYPE === 'sessionStorage' ? sessionStorage : localStorage;
-  const token = storage.getItem(config.AUTH.TOKEN_KEY);
+  // Log request in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('API Request:', {
+      url: config.url,
+      method: config.method,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
-}, handleError);
+}, (error) => {
+  console.error('Request interceptor error:', {
+    message: error.message,
+    config: error.config,
+    timestamp: new Date().toISOString()
+  });
+  return Promise.reject(error);
+});
 
 // Add response interceptor for error handling
 axiosInstance.interceptors.response.use(
-  (response) => response,
-  handleError
+  (response) => {
+    // Log successful response in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('API Response:', {
+        url: response.config.url,
+        status: response.status,
+        timestamp: new Date().toISOString()
+      });
+    }
+    return response;
+  },
+  (error) => {
+    // Log error details
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data,
+      timestamp: new Date().toISOString()
+    });
+
+    // Handle specific error cases
+    if (error.response) {
+      // Server responded with error status
+      const message = error.response.data?.message || 'Server error occurred';
+      if (error.response.status === 401) {
+        // Clear auth data on unauthorized
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('username');
+        window.location.href = '/signin';
+      }
+      throw new Error(message);
+    } else if (error.request) {
+      // Request made but no response
+      throw new Error('No response from server. Please check your connection.');
+    } else {
+      // Request setup error
+      throw new Error('Failed to make request. Please try again.');
+    }
+  }
 );
 
 export const api = {

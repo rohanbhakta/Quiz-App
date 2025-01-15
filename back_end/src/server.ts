@@ -14,18 +14,37 @@ const app = express();
 
 // CORS configuration
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL || 'https://quiz-app-frontend.vercel.app'
-    : 'http://localhost:3000',
+  origin: '*', // Allow all origins
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
   optionsSuccessStatus: 200,
-  credentials: true
+  credentials: false // Disable credentials since we're using token-based auth
 };
+
+// Log server configuration
+console.log('Server Configuration:', {
+  environment: process.env.NODE_ENV,
+  port: process.env.PORT || '5003',
+  corsConfig: {
+    origin: corsOptions.origin,
+    methods: corsOptions.methods,
+    credentials: corsOptions.credentials
+  }
+});
 
 // Apply CORS middleware
 app.use(cors(corsOptions));
+
+// Handle preflight requests
 app.options('*', cors(corsOptions));
+
+// Add security headers
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  next();
+});
 
 // Parse JSON bodies
 app.use(express.json());
