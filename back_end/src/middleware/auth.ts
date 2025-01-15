@@ -1,18 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-// Get JWT secret from environment
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   console.error('JWT_SECRET environment variable is not set');
   process.exit(1);
 }
-
-// Log middleware initialization
-console.log('Auth Middleware Configuration:', {
-  environment: process.env.NODE_ENV,
-  tokenExpiry: '24h'
-});
 
 interface AuthRequest extends Request {
   user?: {
@@ -24,12 +17,18 @@ interface AuthRequest extends Request {
 
 export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) {
-      return res.status(401).json({ message: 'Authentication required' });
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      return res.status(200).send();
     }
 
-    // Log auth attempt with request details
+    // Log auth attempt
     console.log('Auth attempt:', {
       path: req.path,
       method: req.method,
@@ -38,8 +37,13 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       timestamp: new Date().toISOString()
     });
 
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      console.log('No token provided');
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string; username: string };
-    
     console.log('Token verified:', {
       userId: decoded.userId,
       username: decoded.username,
