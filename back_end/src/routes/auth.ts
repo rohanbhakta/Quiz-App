@@ -14,33 +14,46 @@ if (!JWT_SECRET) {
 
 // CORS configuration for auth routes
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? process.env.FRONTEND_URL || 'https://quiz-app-frontend.vercel.app'
-    : 'http://localhost:3000',
+  origin: '*', // Allow all origins
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-  credentials: true,
-  optionsSuccessStatus: 200
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  optionsSuccessStatus: 200,
+  credentials: false // Disable credentials since we're using token-based auth
 };
 
 // Apply CORS to all auth routes
 router.use(cors(corsOptions));
 
+// Add security headers
+router.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  next();
+});
+
 // Log environment and configuration
 console.log('Auth Service Configuration:', {
   environment: process.env.NODE_ENV,
-  corsOrigin: corsOptions.origin,
-  routes: [
-    'POST /auth/signup',
-    'POST /auth/signin',
-    'POST /auth/verify'
-  ]
+  corsConfig: {
+    origin: corsOptions.origin,
+    methods: corsOptions.methods,
+    credentials: corsOptions.credentials
+  },
+  timestamp: new Date().toISOString()
 });
 
 // Sign Up
 router.post('/auth/signup', async (req, res) => {
   try {
-    console.log('Received signup request:', req.body);
+    console.log('Signup attempt:', {
+      email: req.body.email,
+      username: req.body.username,
+      timestamp: new Date().toISOString(),
+      origin: req.headers.origin,
+      userAgent: req.headers['user-agent']
+    });
+
     const { email, username, password } = req.body;
 
     if (!email || !username || !password) {
@@ -78,7 +91,11 @@ router.post('/auth/signup', async (req, res) => {
 
     res.status(201).json({ token, userId: user._id, username: user.username });
   } catch (error: any) {
-    console.error('Signup error:', error);
+    console.error('Signup error:', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
     if (error.name === 'ValidationError') {
       return res.status(400).json({ 
         message: 'Validation error', 
@@ -98,6 +115,7 @@ router.post('/auth/signin', async (req, res) => {
       origin: req.headers.origin,
       userAgent: req.headers['user-agent']
     });
+
     const { emailOrUsername, password } = req.body;
 
     if (!emailOrUsername || !password) {
@@ -148,9 +166,19 @@ router.post('/auth/signin', async (req, res) => {
       timestamp: new Date().toISOString(),
       tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     });
+
+    // Set response headers
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'POST');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
     res.json({ token, userId: user._id, username: user.username });
   } catch (error) {
-    console.error('Signin error:', error);
+    console.error('Signin error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ message: 'Error signing in' });
   }
 });
@@ -158,8 +186,10 @@ router.post('/auth/signin', async (req, res) => {
 // Verify Token
 router.post('/auth/verify', async (req, res) => {
   try {
-    console.log('Token verification attempt');
-    console.log('Headers:', req.headers);
+    console.log('Token verification attempt:', {
+      headers: req.headers,
+      timestamp: new Date().toISOString()
+    });
     
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
@@ -167,9 +197,12 @@ router.post('/auth/verify', async (req, res) => {
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    console.log('Verifying token:', token);
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string; username: string };
-    console.log('Decoded token:', decoded);
+    console.log('Token verified:', {
+      userId: decoded.userId,
+      username: decoded.username,
+      timestamp: new Date().toISOString()
+    });
 
     const user: ILogin | null = await Login.findById(decoded.userId);
     console.log('User lookup result:', user ? { id: user._id, email: user.email, username: user.username } : 'Not found');
@@ -180,7 +213,11 @@ router.post('/auth/verify', async (req, res) => {
 
     res.json({ userId: user._id, email: user.email, username: user.username });
   } catch (error) {
-    console.error('Token verification error:', error);
+    console.error('Token verification error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
     if (error instanceof jwt.JsonWebTokenError) {
       return res.status(401).json({ message: 'Invalid token' });
     }
