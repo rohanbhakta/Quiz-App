@@ -60,19 +60,35 @@ const SignUp = () => {
   return (
     <Container maxWidth="sm">
       <Box sx={{ mt: 8 }}>
-        <Typography 
-          variant="h2" 
-          gutterBottom
-          sx={{
-            background: theme.palette.gradient.primary,
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            textAlign: 'center',
-            mb: 6
-          }}
-        >
-          Sign Up
-        </Typography>
+        <Box sx={{ textAlign: 'center', mb: 6 }}>
+          <Box
+            component="img"
+            src="/logo.svg"
+            alt="QuizApp"
+            onClick={() => navigate('/')}
+            sx={{
+              height: 48,
+              mb: 3,
+              cursor: 'pointer',
+              transition: 'transform 0.2s',
+              '&:hover': {
+                transform: 'scale(1.05)'
+              }
+            }}
+          />
+          <Typography 
+            variant="h2" 
+            gutterBottom
+            sx={{
+              background: theme.palette.gradient.primary,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              textAlign: 'center'
+            }}
+          >
+            Sign Up
+          </Typography>
+        </Box>
 
         <Paper 
           sx={{ 

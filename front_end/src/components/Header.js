@@ -94,20 +94,20 @@ const Header = ({ onToggleTheme }) => {
           padding: '12px'
         }
       }}>
-        <Button
-          variant="contained"
-          startIcon={<HomeIcon />}
+        <Box
+          component="img"
+          src="/logo.svg"
+          alt="QuizApp"
           onClick={() => navigate('/')}
           sx={{
-            background: theme.palette.gradient.primary,
+            height: 32,
+            cursor: 'pointer',
+            transition: 'transform 0.2s',
             '&:hover': {
-              background: theme.palette.gradient.hover,
-            },
-            boxShadow: theme.shadows[4]
+              transform: 'scale(1.05)'
+            }
           }}
-        >
-          Home
-        </Button>
+        />
 
         {isLoggedIn && (
           <>

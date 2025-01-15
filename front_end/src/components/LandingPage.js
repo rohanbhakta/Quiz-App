@@ -76,19 +76,30 @@ const LandingPage = () => {
           <Grid container spacing={4} alignItems="center">
             <Grid item xs={12} md={7}>
               <Box sx={{ position: 'relative', zIndex: 1 }}>
-                <Typography 
-                  variant="h1" 
-                  sx={{
-                    fontSize: { xs: '3rem', sm: '4rem', md: '5rem' },
-                    fontWeight: 800,
-                    color: 'white',
-                    textShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                    mb: 2,
-                    lineHeight: 1.1
-                  }}
-                >
-                  Piramal quiz-ine
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                  <Box
+                    component="img"
+                    src="/logo.svg"
+                    alt="QuizApp"
+                    sx={{
+                      height: { xs: 60, sm: 80, md: 100 },
+                      mr: 3,
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
+                    }}
+                  />
+                  <Typography 
+                    variant="h1" 
+                    sx={{
+                      fontSize: { xs: '3rem', sm: '4rem', md: '5rem' },
+                      fontWeight: 800,
+                      color: 'white',
+                      textShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                      lineHeight: 1.1
+                    }}
+                  >
+                    QuizApp
+                  </Typography>
+                </Box>
                 <Typography 
                   variant="h4" 
                   sx={{
