@@ -12,50 +12,61 @@ import { authMiddleware } from './middleware/auth';
 
 const app = express();
 
-// CORS configuration
-const corsOptions = {
-  origin: '*', // Allow all origins
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
-  optionsSuccessStatus: 200,
-  credentials: false // Disable credentials since we're using token-based auth
-};
-
-// Log server configuration
-console.log('Server Configuration:', {
+// Log startup configuration
+console.log('Server Starting:', {
   environment: process.env.NODE_ENV,
   port: process.env.PORT || '5003',
-  corsConfig: {
-    origin: corsOptions.origin,
-    methods: corsOptions.methods,
-    credentials: corsOptions.credentials
-  }
+  timestamp: new Date().toISOString()
 });
 
-// Apply CORS middleware
-app.use(cors(corsOptions));
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
-
-// Add security headers
+// Basic security middleware
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.removeHeader('X-Powered-By');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
   next();
 });
+
+// CORS configuration
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  credentials: false,
+  optionsSuccessStatus: 200
+}));
+
+// Handle preflight requests
+app.options('*', cors());
 
 // Parse JSON bodies
 app.use(express.json());
 
 // Request logging middleware
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  console.log('Headers:', req.headers);
-  if (req.body && Object.keys(req.body).length > 0) {
-    console.log('Body:', req.body);
-  }
+  console.log('Request:', {
+    method: req.method,
+    url: req.url,
+    origin: req.headers.origin,
+    userAgent: req.headers['user-agent'],
+    timestamp: new Date().toISOString()
+  });
+  next();
+});
+
+// Response logging middleware
+app.use((req, res, next) => {
+  const originalSend = res.send;
+  res.send = function(body) {
+    console.log('Response:', {
+      method: req.method,
+      url: req.url,
+      status: res.statusCode,
+      timestamp: new Date().toISOString()
+    });
+    return originalSend.call(this, body);
+  };
   next();
 });
 
@@ -64,7 +75,13 @@ app.use('/api', authRoutes);
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Error:', err);
+  console.error('Error:', {
+    error: err.message,
+    stack: err.stack,
+    url: req.url,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
   res.status(500).json({ message: 'Internal server error', error: err.message });
 });
 
@@ -75,9 +92,7 @@ connectDB();
 app.get('/api/quizzes/user', authMiddleware, async (req, res) => {
   try {
     const userId = (req as any).user.userId;
-    console.log('Fetching quizzes for user:', userId);
     const quizzes = await Quiz.find({ creatorId: new mongoose.Types.ObjectId(userId) }).sort({ createdAt: -1 });
-    console.log('Found quizzes:', quizzes);
     
     const quizResponses = await QuizResponse.aggregate([
       {
@@ -151,7 +166,6 @@ app.delete('/api/auth/account', authMiddleware, async (req, res) => {
 
 app.post('/api/quizzes', authMiddleware, async (req, res) => {
   try {
-    console.log('Creating quiz:', req.body);
     const { title, questions } = req.body;
 
     if (!title || !questions || !Array.isArray(questions) || questions.length === 0) {
@@ -307,10 +321,12 @@ app.get('/api/quizzes/:id/results', async (req, res) => {
 // Start server
 const PORT = parseInt(process.env.PORT || '5003', 10);
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log('Environment:', process.env.NODE_ENV);
-  console.log('CORS enabled for:', corsOptions.origin);
-  console.log('MongoDB connection state:', mongoose.connection.readyState);
+  console.log('Server Running:', {
+    port: PORT,
+    environment: process.env.NODE_ENV,
+    mongodbStatus: mongoose.connection.readyState,
+    timestamp: new Date().toISOString()
+  });
 });
 
 export default app;
