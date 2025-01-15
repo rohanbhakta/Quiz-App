@@ -4,28 +4,25 @@ import config from '../config';
 // Log API configuration
 console.log('API Service Configuration:', {
   baseURL: config.API_URL,
-  timeout: config.API_TIMEOUT,
   timestamp: new Date().toISOString()
 });
 
 // Create axios instance with custom config
 const axiosInstance = axios.create({
   baseURL: config.API_URL,
-  timeout: config.API_TIMEOUT,
   headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
+    'Content-Type': 'application/json'
+  },
+  timeout: config.API_TIMEOUT || 30000
 });
 
 // Request interceptor
 axiosInstance.interceptors.request.use(
   (config) => {
-    // Log request details
+    // Log request
     console.log('API Request:', {
       url: config.url,
       method: config.method,
-      baseURL: config.baseURL,
       timestamp: new Date().toISOString()
     });
 
