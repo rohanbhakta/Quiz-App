@@ -1,15 +1,41 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
+import cors from 'cors';
 import Login, { ILogin } from '../models/Login';
 
 const router = express.Router();
 
-// Log route registration
-console.log('Registering auth routes:');
-console.log('- POST /auth/signup');
-console.log('- POST /auth/signin');
-console.log('- POST /auth/verify');
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+// Get environment variables
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET environment variable is not set');
+  process.exit(1);
+}
+
+// CORS configuration for auth routes
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.FRONTEND_URL || 'https://quiz-app-frontend.vercel.app'
+    : 'http://localhost:3000',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+// Apply CORS to all auth routes
+router.use(cors(corsOptions));
+
+// Log environment and configuration
+console.log('Auth Service Configuration:', {
+  environment: process.env.NODE_ENV,
+  corsOrigin: corsOptions.origin,
+  routes: [
+    'POST /auth/signup',
+    'POST /auth/signin',
+    'POST /auth/verify'
+  ]
+});
 
 // Sign Up
 router.post('/auth/signup', async (req, res) => {
@@ -66,7 +92,12 @@ router.post('/auth/signup', async (req, res) => {
 // Sign In
 router.post('/auth/signin', async (req, res) => {
   try {
-    console.log('Received signin request:', { emailOrUsername: req.body.emailOrUsername });
+    console.log('Signin attempt:', {
+      emailOrUsername: req.body.emailOrUsername,
+      timestamp: new Date().toISOString(),
+      origin: req.headers.origin,
+      userAgent: req.headers['user-agent']
+    });
     const { emailOrUsername, password } = req.body;
 
     if (!emailOrUsername || !password) {
@@ -82,7 +113,15 @@ router.post('/auth/signin', async (req, res) => {
       ]
     });
 
-    console.log('User lookup result:', user ? { id: user._id, email: user.email, username: user.username } : 'Not found');
+    console.log('User lookup result:', {
+      found: !!user,
+      timestamp: new Date().toISOString(),
+      ...(user ? {
+        id: user._id,
+        email: user.email,
+        username: user.username
+      } : {})
+    });
 
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
@@ -103,7 +142,12 @@ router.post('/auth/signin', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    console.log('Login successful:', { userId: user._id, username: user.username });
+    console.log('Login successful:', {
+      userId: user._id,
+      username: user.username,
+      timestamp: new Date().toISOString(),
+      tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    });
     res.json({ token, userId: user._id, username: user.username });
   } catch (error) {
     console.error('Signin error:', error);

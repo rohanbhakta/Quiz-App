@@ -1,7 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+// Get JWT secret from environment
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET environment variable is not set');
+  process.exit(1);
+}
+
+// Log middleware initialization
+console.log('Auth Middleware Configuration:', {
+  environment: process.env.NODE_ENV,
+  tokenExpiry: '24h'
+});
 
 interface AuthRequest extends Request {
   user?: {
@@ -18,9 +29,22 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    console.log('Verifying token:', token);
+    // Log auth attempt with request details
+    console.log('Auth attempt:', {
+      path: req.path,
+      method: req.method,
+      origin: req.headers.origin,
+      userAgent: req.headers['user-agent'],
+      timestamp: new Date().toISOString()
+    });
+
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string; username: string };
-    console.log('Decoded token:', decoded);
+    
+    console.log('Token verified:', {
+      userId: decoded.userId,
+      username: decoded.username,
+      timestamp: new Date().toISOString()
+    });
     
     if (!decoded.userId) {
       console.error('No userId in token:', decoded);
@@ -28,11 +52,22 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
     }
 
     req.user = decoded;
-    console.log('User set in request:', req.user);
+    console.log('Auth successful:', {
+      userId: req.user.userId,
+      username: req.user.username,
+      path: req.path,
+      timestamp: new Date().toISOString()
+    });
     
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
+    console.error('Auth middleware error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      path: req.path,
+      origin: req.headers.origin,
+      timestamp: new Date().toISOString()
+    });
     if (error instanceof jwt.JsonWebTokenError) {
       return res.status(401).json({ message: 'Invalid token' });
     }
