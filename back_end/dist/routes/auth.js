@@ -16,22 +16,43 @@ const express_1 = __importDefault(require("express"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const Login_1 = __importDefault(require("../models/Login"));
 const router = express_1.default.Router();
+// Log route registration
+console.log('Registering auth routes:');
+console.log('- POST /auth/signup');
+console.log('- POST /auth/signin');
+console.log('- POST /auth/verify');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 // Sign Up
-router.post('/signup', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post('/auth/signup', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { email, password } = req.body;
+        console.log('Received signup request:', req.body);
+        const { email, username, password } = req.body;
+        if (!email || !username || !password) {
+            console.error('Missing required fields:', { email: !!email, username: !!username, password: !!password });
+            return res.status(400).json({ message: 'All fields are required' });
+        }
         // Check if user already exists
-        const existingUser = yield Login_1.default.findOne({ email });
+        const existingUser = yield Login_1.default.findOne({
+            $or: [{ email: email.toLowerCase() }, { username }]
+        });
         if (existingUser) {
-            return res.status(400).json({ message: 'Email already registered' });
+            console.log('User already exists:', { email: existingUser.email, username: existingUser.username });
+            if (existingUser.email === email.toLowerCase()) {
+                return res.status(400).json({ message: 'Email already registered' });
+            }
+            return res.status(400).json({ message: 'Username already taken' });
         }
         // Create new user
-        const user = new Login_1.default({ email, password });
+        const user = new Login_1.default({
+            email: email.toLowerCase(),
+            username,
+            password
+        });
         yield user.save();
+        console.log('User created successfully:', { id: user._id, email: user.email, username: user.username });
         // Generate JWT token
-        const token = jsonwebtoken_1.default.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: '24h' });
-        res.status(201).json({ token, userId: user._id });
+        const token = jsonwebtoken_1.default.sign({ userId: user._id.toString(), email: user.email, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+        res.status(201).json({ token, userId: user._id, username: user.username });
     }
     catch (error) {
         console.error('Signup error:', error);
@@ -45,22 +66,35 @@ router.post('/signup', (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
 }));
 // Sign In
-router.post('/signin', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post('/auth/signin', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { email, password } = req.body;
-        // Find user
-        const user = yield Login_1.default.findOne({ email });
+        console.log('Received signin request:', { emailOrUsername: req.body.emailOrUsername });
+        const { emailOrUsername, password } = req.body;
+        if (!emailOrUsername || !password) {
+            console.error('Missing required fields:', { emailOrUsername: !!emailOrUsername, password: !!password });
+            return res.status(400).json({ message: 'All fields are required' });
+        }
+        // Find user by email or username
+        const user = yield Login_1.default.findOne({
+            $or: [
+                { email: emailOrUsername.toLowerCase() },
+                { username: emailOrUsername }
+            ]
+        });
+        console.log('User lookup result:', user ? { id: user._id, email: user.email, username: user.username } : 'Not found');
         if (!user) {
             return res.status(401).json({ message: 'Invalid email or password' });
         }
         // Check password
         const isMatch = yield user.comparePassword(password);
+        console.log('Password match:', isMatch);
         if (!isMatch) {
             return res.status(401).json({ message: 'Invalid email or password' });
         }
         // Generate JWT token
-        const token = jsonwebtoken_1.default.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: '24h' });
-        res.json({ token, userId: user._id });
+        const token = jsonwebtoken_1.default.sign({ userId: user._id.toString(), email: user.email, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
+        console.log('Login successful:', { userId: user._id, username: user.username });
+        res.json({ token, userId: user._id, username: user.username });
     }
     catch (error) {
         console.error('Signin error:', error);
@@ -68,23 +102,35 @@ router.post('/signin', (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
 }));
 // Verify Token
-router.post('/verify', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post('/auth/verify', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     try {
+        console.log('Token verification attempt');
+        console.log('Headers:', req.headers);
         const token = (_a = req.headers.authorization) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
         if (!token) {
+            console.log('No token provided');
             return res.status(401).json({ message: 'No token provided' });
         }
+        console.log('Verifying token:', token);
         const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
+        console.log('Decoded token:', decoded);
         const user = yield Login_1.default.findById(decoded.userId);
+        console.log('User lookup result:', user ? { id: user._id, email: user.email, username: user.username } : 'Not found');
         if (!user) {
             return res.status(401).json({ message: 'Invalid token' });
         }
-        res.json({ userId: user._id, email: user.email });
+        res.json({ userId: user._id, email: user.email, username: user.username });
     }
     catch (error) {
         console.error('Token verification error:', error);
-        res.status(401).json({ message: 'Invalid token' });
+        if (error instanceof jsonwebtoken_1.default.JsonWebTokenError) {
+            return res.status(401).json({ message: 'Invalid token' });
+        }
+        if (error instanceof jsonwebtoken_1.default.TokenExpiredError) {
+            return res.status(401).json({ message: 'Token expired' });
+        }
+        res.status(500).json({ message: 'Error verifying token' });
     }
 }));
 exports.default = router;

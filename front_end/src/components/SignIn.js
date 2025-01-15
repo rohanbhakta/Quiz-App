@@ -10,6 +10,8 @@ import {
   Alert,
   Link,
   CircularProgress,
+  FormControlLabel,
+  Checkbox,
   useTheme
 } from '@mui/material';
 import { api } from '../services/api';
@@ -17,8 +19,9 @@ import { api } from '../services/api';
 const SignIn = () => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -28,9 +31,15 @@ const SignIn = () => {
     setLoading(true);
 
     try {
-      const { token } = await api.signIn(email, password);
-      localStorage.setItem('token', token);
-      navigate('/create');
+      const { token, username } = await api.signIn(emailOrUsername, password);
+      if (rememberMe) {
+        localStorage.setItem('token', token);
+        localStorage.setItem('username', username);
+      } else {
+        sessionStorage.setItem('token', token);
+        sessionStorage.setItem('username', username);
+      }
+      navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to sign in');
     } finally {
@@ -72,10 +81,9 @@ const SignIn = () => {
           <form onSubmit={handleSubmit}>
             <TextField
               fullWidth
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              label="Email or Username"
+              value={emailOrUsername}
+              onChange={(e) => setEmailOrUsername(e.target.value)}
               margin="normal"
               required
               disabled={loading}
@@ -90,6 +98,19 @@ const SignIn = () => {
               margin="normal"
               required
               disabled={loading}
+            />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  color="primary"
+                  disabled={loading}
+                />
+              }
+              label="Remember me"
+              sx={{ mt: 2 }}
             />
 
             <Button

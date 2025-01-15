@@ -70,6 +70,11 @@ const QuizSchema = new mongoose_1.Schema({
         required: true,
         trim: true
     },
+    creatorId: {
+        type: mongoose_1.default.Schema.Types.ObjectId,
+        required: true,
+        ref: 'Login' // Reference to the Login model
+    },
     title: {
         type: String,
         required: true,
@@ -98,6 +103,7 @@ const QuizSchema = new mongoose_1.Schema({
 });
 // Create indexes
 QuizSchema.index({ id: 1 }, { unique: true });
+QuizSchema.index({ creatorId: 1 }); // Index for faster lookup by creator
 QuizSchema.index({ createdAt: -1 });
 // Add error handling middleware
 QuizSchema.post('save', function (error, doc, next) {

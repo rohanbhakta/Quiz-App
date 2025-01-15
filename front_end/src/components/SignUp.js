@@ -18,6 +18,7 @@ const SignUp = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -37,12 +38,18 @@ const SignUp = () => {
       return;
     }
 
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters long');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const { token } = await api.signUp(email, password);
+      const { token, username: savedUsername } = await api.signUp(email, username, password);
       localStorage.setItem('token', token);
-      navigate('/create');
+      localStorage.setItem('username', savedUsername);
+      navigate('/dashboard');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to sign up');
     } finally {
@@ -82,6 +89,17 @@ const SignUp = () => {
           )}
 
           <form onSubmit={handleSubmit}>
+            <TextField
+              fullWidth
+              label="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              margin="normal"
+              required
+              disabled={loading}
+              helperText="Username must be at least 3 characters long"
+            />
+
             <TextField
               fullWidth
               label="Email"

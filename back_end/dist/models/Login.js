@@ -23,6 +23,13 @@ const LoginSchema = new mongoose_1.default.Schema({
         lowercase: true,
         match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email']
     },
+    username: {
+        type: String,
+        required: [true, 'Username is required'],
+        trim: true,
+        minlength: [3, 'Username must be at least 3 characters long'],
+        maxlength: [30, 'Username cannot exceed 30 characters']
+    },
     password: {
         type: String,
         required: [true, 'Password is required'],

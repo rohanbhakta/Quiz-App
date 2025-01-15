@@ -22,13 +22,26 @@ const authMiddleware = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
         if (!token) {
             return res.status(401).json({ message: 'Authentication required' });
         }
+        console.log('Verifying token:', token);
         const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
+        console.log('Decoded token:', decoded);
+        if (!decoded.userId) {
+            console.error('No userId in token:', decoded);
+            return res.status(401).json({ message: 'Invalid token format' });
+        }
         req.user = decoded;
+        console.log('User set in request:', req.user);
         next();
     }
     catch (error) {
         console.error('Auth middleware error:', error);
-        res.status(401).json({ message: 'Invalid token' });
+        if (error instanceof jsonwebtoken_1.default.JsonWebTokenError) {
+            return res.status(401).json({ message: 'Invalid token' });
+        }
+        if (error instanceof jsonwebtoken_1.default.TokenExpiredError) {
+            return res.status(401).json({ message: 'Token expired' });
+        }
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
 exports.authMiddleware = authMiddleware;

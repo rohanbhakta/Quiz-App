@@ -20,91 +20,136 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const Quiz_1 = __importDefault(require("./models/Quiz"));
 const Player_1 = __importDefault(require("./models/Player"));
 const QuizResponse_1 = __importDefault(require("./models/QuizResponse"));
+const Login_1 = __importDefault(require("./models/Login"));
 const auth_1 = __importDefault(require("./routes/auth"));
 const auth_2 = require("./middleware/auth");
 const app = (0, express_1.default)();
 // CORS configuration
-// Middleware
-app.use((0, cors_1.default)({
-    origin: '*',
+const corsOptions = {
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
-}));
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    optionsSuccessStatus: 200
+};
+// Apply CORS middleware
+app.use((0, cors_1.default)(corsOptions));
+app.options('*', (0, cors_1.default)(corsOptions));
+// Parse JSON bodies
 app.use(express_1.default.json());
-// Routes
-app.use('/api/auth', auth_1.default);
+// Request logging middleware
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    console.log('Headers:', req.headers);
+    if (req.body && Object.keys(req.body).length > 0) {
+        console.log('Body:', req.body);
+    }
+    next();
+});
+// Mount auth routes
+app.use('/api', auth_1.default);
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Error:', err);
+    res.status(500).json({ message: 'Internal server error', error: err.message });
+});
 // Connect to MongoDB
 (0, db_1.connectDB)();
-// Create a new quiz (protected route)
+// Quiz routes
+app.get('/api/quizzes/user', auth_2.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const userId = req.user.userId;
+        console.log('Fetching quizzes for user:', userId);
+        const quizzes = yield Quiz_1.default.find({ creatorId: new mongoose_1.default.Types.ObjectId(userId) }).sort({ createdAt: -1 });
+        console.log('Found quizzes:', quizzes);
+        const quizResponses = yield QuizResponse_1.default.aggregate([
+            {
+                $match: {
+                    quizId: { $in: quizzes.map(quiz => quiz.id) }
+                }
+            },
+            {
+                $group: {
+                    _id: '$quizId',
+                    participantCount: { $addToSet: '$playerId' }
+                }
+            }
+        ]);
+        const quizzesWithParticipants = quizzes.map(quiz => {
+            const responses = quizResponses.find(r => r._id === quiz.id);
+            return Object.assign(Object.assign({}, quiz.toObject()), { participants: responses ? responses.participantCount.length : 0 });
+        });
+        res.json(quizzesWithParticipants);
+    }
+    catch (error) {
+        console.error('Error fetching user quizzes:', error);
+        res.status(500).json({ message: 'Error fetching quizzes' });
+    }
+}));
+app.delete('/api/quizzes/:id', auth_2.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const userId = req.user.userId;
+        const quiz = yield Quiz_1.default.findOne({ id: req.params.id });
+        if (!quiz) {
+            return res.status(404).json({ message: 'Quiz not found' });
+        }
+        if (quiz.creatorId.toString() !== userId) {
+            return res.status(403).json({ message: 'Not authorized to delete this quiz' });
+        }
+        yield Quiz_1.default.deleteOne({ id: req.params.id });
+        yield QuizResponse_1.default.deleteMany({ quizId: req.params.id });
+        res.json({ message: 'Quiz deleted successfully' });
+    }
+    catch (error) {
+        console.error('Error deleting quiz:', error);
+        res.status(500).json({ message: 'Error deleting quiz' });
+    }
+}));
+app.delete('/api/auth/account', auth_2.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const userId = req.user.userId;
+        const userQuizzes = yield Quiz_1.default.find({ creatorId: new mongoose_1.default.Types.ObjectId(userId) });
+        const quizIds = userQuizzes.map(quiz => quiz.id);
+        yield Promise.all([
+            Quiz_1.default.deleteMany({ creatorId: new mongoose_1.default.Types.ObjectId(userId) }),
+            QuizResponse_1.default.deleteMany({ quizId: { $in: quizIds } }),
+            Login_1.default.deleteOne({ _id: userId })
+        ]);
+        res.json({ message: 'Account deleted successfully' });
+    }
+    catch (error) {
+        console.error('Error deleting account:', error);
+        res.status(500).json({ message: 'Error deleting account' });
+    }
+}));
 app.post('/api/quizzes', auth_2.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        console.log('Received request to create quiz');
-        console.log('Request headers:', req.headers);
-        console.log('Request body:', JSON.stringify(req.body, null, 2));
-        console.log('MongoDB connection state:', mongoose_1.default.connection.readyState);
-        if (!req.body || !req.body.title || !req.body.questions) {
-            console.error('Invalid request body:', req.body);
-            return res.status(400).json({
-                message: 'Invalid request body',
-                required: { title: 'string', questions: 'array' },
-                received: req.body
-            });
-        }
+        console.log('Creating quiz:', req.body);
         const { title, questions } = req.body;
-        if (!Array.isArray(questions) || questions.length === 0) {
-            console.error('Invalid questions array:', questions);
-            return res.status(400).json({
-                message: 'Questions must be a non-empty array',
-                received: questions
-            });
+        if (!title || !questions || !Array.isArray(questions) || questions.length === 0) {
+            return res.status(400).json({ message: 'Invalid quiz data' });
         }
-        // Validate and format questions
-        const validatedQuestions = questions.map((q) => {
-            // Ensure timer is between 5 and 300 seconds
-            const timer = Math.min(Math.max(q.timer || 30, 5), 300);
-            return Object.assign(Object.assign({}, q), { id: (0, uuid_1.v4)(), timer });
-        });
-        console.log('Creating quiz with validated questions:', validatedQuestions);
+        const validatedQuestions = questions.map((q) => (Object.assign(Object.assign({}, q), { id: (0, uuid_1.v4)(), timer: Math.min(Math.max(q.timer || 30, 5), 300) })));
+        const userId = req.user.userId;
         const quiz = new Quiz_1.default({
             id: (0, uuid_1.v4)(),
+            creatorId: new mongoose_1.default.Types.ObjectId(userId),
             title,
             questions: validatedQuestions
         });
-        console.log('Created quiz model:', quiz);
-        try {
-            const savedQuiz = yield quiz.save();
-            console.log('Quiz saved successfully:', savedQuiz);
-            res.status(201).json(savedQuiz);
-        }
-        catch (error) {
-            console.error('Error saving quiz to database:', error);
-            if (error.name === 'ValidationError' && error.errors) {
-                return res.status(400).json({
-                    message: 'Quiz validation failed',
-                    errors: Object.values(error.errors).map((err) => err.message)
-                });
-            }
-            throw error;
-        }
+        const savedQuiz = yield quiz.save();
+        res.status(201).json(savedQuiz);
     }
     catch (error) {
         console.error('Error creating quiz:', error);
-        res.status(500).json({
-            message: 'Error creating quiz',
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
+        res.status(500).json({ message: 'Error creating quiz' });
     }
 }));
-// Get a quiz by ID
 app.get('/api/quizzes/:id', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        console.log('Fetching quiz:', req.params.id);
         const quiz = yield Quiz_1.default.findOne({ id: req.params.id });
         if (!quiz) {
-            console.log('Quiz not found:', req.params.id);
             return res.status(404).json({ message: 'Quiz not found' });
         }
-        console.log('Quiz found:', quiz);
         res.json(quiz);
     }
     catch (error) {
@@ -112,16 +157,12 @@ app.get('/api/quizzes/:id', (req, res) => __awaiter(void 0, void 0, void 0, func
         res.status(500).json({ message: 'Error fetching quiz' });
     }
 }));
-// Join a quiz as a player
 app.post('/api/quizzes/:id/join', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        console.log('Player joining quiz:', req.params.id, req.body);
         const { name } = req.body;
         const quizId = req.params.id;
-        // Check if quiz exists
         const quiz = yield Quiz_1.default.findOne({ id: quizId });
         if (!quiz) {
-            console.log('Quiz not found for joining:', quizId);
             return res.status(404).json({ message: 'Quiz not found' });
         }
         const player = new Player_1.default({
@@ -130,7 +171,6 @@ app.post('/api/quizzes/:id/join', (req, res) => __awaiter(void 0, void 0, void 0
             quizId
         });
         yield player.save();
-        console.log('Player joined successfully:', player);
         res.json({ playerId: player.id });
     }
     catch (error) {
@@ -138,108 +178,65 @@ app.post('/api/quizzes/:id/join', (req, res) => __awaiter(void 0, void 0, void 0
         res.status(500).json({ message: 'Error joining quiz' });
     }
 }));
-// Submit quiz answers
 app.post('/api/quizzes/:id/submit', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        console.log('Submitting answers for quiz:', req.params.id);
-        console.log('Request body:', req.body);
         const { playerId, answers } = req.body;
         const quizId = req.params.id;
-        console.log('Looking up quiz:', quizId);
         const quiz = yield Quiz_1.default.findOne({ id: quizId });
         if (!quiz) {
-            console.log('Quiz not found for submission:', quizId);
             return res.status(404).json({ message: 'Quiz not found' });
         }
-        console.log('Looking up player:', playerId);
         const player = yield Player_1.default.findOne({ id: playerId });
         if (!player) {
-            console.log('Player not found:', playerId);
             return res.status(404).json({ message: 'Player not found' });
         }
-        // Calculate score and response times
         let score = 0;
         let totalResponseTime = 0;
         let fastestResponse = Infinity;
-        console.log('Calculating score and response times for answers:', answers);
         answers.forEach((answer) => {
             const question = quiz.questions.find(q => q.id === answer.questionId);
-            console.log('Checking question:', question, 'for answer:', answer);
-            // Calculate score
             if (question && question.correctAnswer === answer.selectedOption) {
                 score++;
             }
-            // Track response times
             if (answer.responseTime) {
                 totalResponseTime += answer.responseTime;
                 fastestResponse = Math.min(fastestResponse, answer.responseTime);
             }
         });
-        const averageResponseTime = totalResponseTime / answers.length;
-        console.log('Final score:', score);
-        console.log('Average response time:', averageResponseTime);
-        console.log('Fastest response:', fastestResponse);
-        // Save response
         const response = new QuizResponse_1.default({
             playerId,
             quizId,
             answers,
             score,
-            averageResponseTime,
+            averageResponseTime: totalResponseTime / answers.length,
             fastestResponse
         });
-        console.log('Saving quiz response:', response);
         yield response.save();
-        console.log('Quiz response saved successfully');
-        // Update player score
         player.score = score;
         yield player.save();
-        console.log('Player score updated successfully');
         res.json({ score });
     }
     catch (error) {
-        console.error('Detailed error submitting answers:', error);
-        res.status(500).json({
-            message: 'Error submitting answers',
-            error: error instanceof Error ? error.message : 'Unknown error'
-        });
+        console.error('Error submitting answers:', error);
+        res.status(500).json({ message: 'Error submitting answers' });
     }
 }));
-// Get quiz results
 app.get('/api/quizzes/:id/results', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        console.log('Fetching results for quiz:', req.params.id);
-        const quizId = req.params.id;
-        const quiz = yield Quiz_1.default.findOne({ id: quizId });
+        const quiz = yield Quiz_1.default.findOne({ id: req.params.id });
         if (!quiz) {
-            console.log('Quiz not found for results:', quizId);
             return res.status(404).json({ message: 'Quiz not found' });
         }
-        const responses = yield QuizResponse_1.default.find({ quizId });
+        const responses = yield QuizResponse_1.default.find({ quizId: req.params.id });
         const players = yield Player_1.default.find({
             id: { $in: responses.map(r => r.playerId) }
         });
         const results = responses.map(response => {
-            // Calculate score percentage (0-100)
             const maxScore = quiz.questions.length;
             const scorePercentage = (response.score / maxScore) * 100;
-            // Calculate time efficiency (0-100)
-            // For each question, calculate how efficiently the time was used
             const totalAllowedTime = quiz.questions.reduce((sum, q) => sum + q.timer * 1000, 0);
             const timeEfficiency = Math.max(0, 100 * (1 - response.averageResponseTime / (totalAllowedTime / maxScore)));
-            // Calculate combined score
-            // 80% weight for accuracy, 20% weight for speed
             const combinedScore = (scorePercentage * 0.8) + (timeEfficiency * 0.2);
-            console.log('Calculating score for player:', {
-                playerId: response.playerId,
-                score: response.score,
-                maxScore,
-                scorePercentage,
-                averageResponseTime: response.averageResponseTime,
-                totalAllowedTime,
-                timeEfficiency,
-                combinedScore
-            });
             return {
                 player: players.find(p => p.id === response.playerId),
                 score: response.score,
@@ -249,9 +246,7 @@ app.get('/api/quizzes/:id/results', (req, res) => __awaiter(void 0, void 0, void
                 timeEfficiency: timeEfficiency.toFixed(1) + '%',
                 combinedScore
             };
-        })
-            .sort((a, b) => b.combinedScore - a.combinedScore);
-        console.log('Quiz results:', results);
+        }).sort((a, b) => b.combinedScore - a.combinedScore);
         res.json(results);
     }
     catch (error) {
@@ -259,12 +254,13 @@ app.get('/api/quizzes/:id/results', (req, res) => __awaiter(void 0, void 0, void
         res.status(500).json({ message: 'Error fetching results' });
     }
 }));
-// Only start the server if we're not in a serverless environment
+// Start server
 if (process.env.NODE_ENV !== 'production') {
-    const PORT = process.env.PORT || 5003;
-    app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
+    const PORT = parseInt(process.env.PORT || '5003', 10);
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+        console.log('CORS enabled for:', corsOptions.origin);
+        console.log('MongoDB connection state:', mongoose_1.default.connection.readyState);
     });
 }
-// Export the app for serverless
 exports.default = app;

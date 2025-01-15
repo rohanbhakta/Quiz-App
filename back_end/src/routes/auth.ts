@@ -1,33 +1,56 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import Login from '../models/Login';
+import Login, { ILogin } from '../models/Login';
 
 const router = express.Router();
+
+// Log route registration
+console.log('Registering auth routes:');
+console.log('- POST /auth/signup');
+console.log('- POST /auth/signin');
+console.log('- POST /auth/verify');
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Sign Up
-router.post('/signup', async (req, res) => {
+router.post('/auth/signup', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    console.log('Received signup request:', req.body);
+    const { email, username, password } = req.body;
+
+    if (!email || !username || !password) {
+      console.error('Missing required fields:', { email: !!email, username: !!username, password: !!password });
+      return res.status(400).json({ message: 'All fields are required' });
+    }
 
     // Check if user already exists
-    const existingUser = await Login.findOne({ email });
+    const existingUser = await Login.findOne({ 
+      $or: [{ email: email.toLowerCase() }, { username }] 
+    });
     if (existingUser) {
-      return res.status(400).json({ message: 'Email already registered' });
+      console.log('User already exists:', { email: existingUser.email, username: existingUser.username });
+      if (existingUser.email === email.toLowerCase()) {
+        return res.status(400).json({ message: 'Email already registered' });
+      }
+      return res.status(400).json({ message: 'Username already taken' });
     }
 
     // Create new user
-    const user = new Login({ email, password });
+    const user: ILogin = new Login({ 
+      email: email.toLowerCase(), 
+      username, 
+      password 
+    });
     await user.save();
+    console.log('User created successfully:', { id: user._id, email: user.email, username: user.username });
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { userId: user._id.toString(), email: user.email, username: user.username },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    res.status(201).json({ token, userId: user._id });
+    res.status(201).json({ token, userId: user._id, username: user.username });
   } catch (error: any) {
     console.error('Signup error:', error);
     if (error.name === 'ValidationError') {
@@ -41,30 +64,47 @@ router.post('/signup', async (req, res) => {
 });
 
 // Sign In
-router.post('/signin', async (req, res) => {
+router.post('/auth/signin', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    console.log('Received signin request:', { emailOrUsername: req.body.emailOrUsername });
+    const { emailOrUsername, password } = req.body;
 
-    // Find user
-    const user = await Login.findOne({ email });
+    if (!emailOrUsername || !password) {
+      console.error('Missing required fields:', { emailOrUsername: !!emailOrUsername, password: !!password });
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // Find user by email or username
+    const user: ILogin | null = await Login.findOne({
+      $or: [
+        { email: emailOrUsername.toLowerCase() },
+        { username: emailOrUsername }
+      ]
+    });
+
+    console.log('User lookup result:', user ? { id: user._id, email: user.email, username: user.username } : 'Not found');
+
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
     // Check password
     const isMatch = await user.comparePassword(password);
+    console.log('Password match:', isMatch);
+    
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user._id, email: user.email },
+      { userId: user._id.toString(), email: user.email, username: user.username },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
 
-    res.json({ token, userId: user._id });
+    console.log('Login successful:', { userId: user._id, username: user.username });
+    res.json({ token, userId: user._id, username: user.username });
   } catch (error) {
     console.error('Signin error:', error);
     res.status(500).json({ message: 'Error signing in' });
@@ -72,23 +112,38 @@ router.post('/signin', async (req, res) => {
 });
 
 // Verify Token
-router.post('/verify', async (req, res) => {
+router.post('/auth/verify', async (req, res) => {
   try {
+    console.log('Token verification attempt');
+    console.log('Headers:', req.headers);
+    
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) {
+      console.log('No token provided');
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-    const user = await Login.findById(decoded.userId);
+    console.log('Verifying token:', token);
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string; username: string };
+    console.log('Decoded token:', decoded);
+
+    const user: ILogin | null = await Login.findById(decoded.userId);
+    console.log('User lookup result:', user ? { id: user._id, email: user.email, username: user.username } : 'Not found');
+
     if (!user) {
       return res.status(401).json({ message: 'Invalid token' });
     }
 
-    res.json({ userId: user._id, email: user.email });
+    res.json({ userId: user._id, email: user.email, username: user.username });
   } catch (error) {
     console.error('Token verification error:', error);
-    res.status(401).json({ message: 'Invalid token' });
+    if (error instanceof jwt.JsonWebTokenError) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+    if (error instanceof jwt.TokenExpiredError) {
+      return res.status(401).json({ message: 'Token expired' });
+    }
+    res.status(500).json({ message: 'Error verifying token' });
   }
 });
 

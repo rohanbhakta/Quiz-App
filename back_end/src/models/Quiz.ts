@@ -10,6 +10,7 @@ export interface IQuestion {
 
 export interface IQuiz extends Document {
   id: string;
+  creatorId: string;
   title: string;
   questions: IQuestion[];
   createdAt: Date;
@@ -52,6 +53,11 @@ const QuizSchema = new Schema({
     required: true,
     trim: true
   },
+  creatorId: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true,
+    ref: 'Login'  // Reference to the Login model
+  },
   title: { 
     type: String, 
     required: true,
@@ -81,6 +87,7 @@ const QuizSchema = new Schema({
 
 // Create indexes
 QuizSchema.index({ id: 1 }, { unique: true });
+QuizSchema.index({ creatorId: 1 });  // Index for faster lookup by creator
 QuizSchema.index({ createdAt: -1 });
 
 // Add error handling middleware

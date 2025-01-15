@@ -5,16 +5,21 @@ import config from '../config';
 const axiosInstance = axios.create({
   baseURL: config.API_URL,
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
   },
-  // Force HTTP protocol and disable HTTPS
-  protocol: 'http',
-  httpsAgent: null
+  timeout: 10000
+});
+
+// Log configuration
+console.log('API Configuration:', {
+  baseURL: config.API_URL,
+  headers: axiosInstance.defaults.headers
 });
 
 // Add token to requests if it exists
 axiosInstance.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -26,9 +31,10 @@ console.log('API Base URL:', config.API_URL);
 
 export const api = {
   // Auth methods
-  signUp: async (email, password) => {
+  signUp: async (email, username, password) => {
     try {
-      const response = await axiosInstance.post('/auth/signup', { email, password });
+      console.log('Attempting signup with:', { email, username });
+      const response = await axiosInstance.post('/api/auth/signup', { email, username, password });
       return response.data;
     } catch (error) {
       console.error('Signup failed:', error.response?.data);
@@ -36,9 +42,11 @@ export const api = {
     }
   },
 
-  signIn: async (email, password) => {
+  signIn: async (emailOrUsername, password) => {
     try {
-      const response = await axiosInstance.post('/auth/signin', { email, password });
+      console.log('Attempting signin with:', { emailOrUsername });
+      const response = await axiosInstance.post('/api/auth/signin', { emailOrUsername, password });
+      console.log('Signin response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Signin failed:', error.response?.data);
@@ -48,10 +56,40 @@ export const api = {
 
   verifyToken: async () => {
     try {
-      const response = await axiosInstance.post('/auth/verify');
+      console.log('Verifying token');
+      const response = await axiosInstance.post('/api/auth/verify');
+      console.log('Token verification response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Token verification failed:', error.response?.data);
+      throw error;
+    }
+  },
+
+  getUserQuizzes: async () => {
+    try {
+      const response = await axiosInstance.get('/api/quizzes/user');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch user quizzes:', error.response?.data);
+      throw error;
+    }
+  },
+
+  deleteQuiz: async (quizId) => {
+    try {
+      await axiosInstance.delete(`/api/quizzes/${quizId}`);
+    } catch (error) {
+      console.error('Failed to delete quiz:', error.response?.data);
+      throw error;
+    }
+  },
+
+  deleteAccount: async () => {
+    try {
+      await axiosInstance.delete('/api/auth/account');
+    } catch (error) {
+      console.error('Failed to delete account:', error.response?.data);
       throw error;
     }
   },
@@ -80,7 +118,7 @@ export const api = {
       });
 
       // Make the request
-      const response = await axiosInstance.post('/quizzes', {
+      const response = await axiosInstance.post('/api/quizzes', {
         title: title.trim(),
         questions: formattedQuestions
       });
@@ -111,7 +149,7 @@ export const api = {
   // Get a quiz by ID
   getQuiz: async (id) => {
     try {
-      const response = await axiosInstance.get(`/quizzes/${id}`);
+      const response = await axiosInstance.get(`/api/quizzes/${id}`);
       return response.data;
     } catch (error) {
       console.error('Failed to fetch quiz:', {
@@ -126,7 +164,7 @@ export const api = {
   // Join a quiz as a player
   joinQuiz: async (quizId, name) => {
     try {
-      const response = await axiosInstance.post(`/quizzes/${quizId}/join`, { name });
+      const response = await axiosInstance.post(`/api/quizzes/${quizId}/join`, { name });
       return response.data;
     } catch (error) {
       console.error('Failed to join quiz:', {
@@ -141,7 +179,7 @@ export const api = {
   // Submit quiz answers
   submitAnswers: async (quizId, playerId, answers) => {
     try {
-      const response = await axiosInstance.post(`/quizzes/${quizId}/submit`, { 
+      const response = await axiosInstance.post(`/api/quizzes/${quizId}/submit`, { 
         playerId, 
         answers: answers.map(answer => ({
           questionId: answer.questionId,
@@ -163,7 +201,7 @@ export const api = {
   // Get quiz results
   getResults: async (quizId) => {
     try {
-      const response = await axiosInstance.get(`/quizzes/${quizId}/results`);
+      const response = await axiosInstance.get(`/api/quizzes/${quizId}/results`);
       return response.data;
     } catch (error) {
       console.error('Failed to fetch results:', {
