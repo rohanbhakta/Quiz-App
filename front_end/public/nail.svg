@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Nail head -->
+  <circle cx="15" cy="15" r="8" fill="#D1D1D1">
+    <animate attributeName="fill" values="#D1D1D1;#A0A0A0;#D1D1D1" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <!-- 3D effect -->
+  <circle cx="13" cy="13" r="4" fill="#FFFFFF" opacity="0.3"/>
+  <!-- Shadow -->
+  <circle cx="15" cy="15" r="7.5" stroke="#808080" stroke-width="1" opacity="0.5"/>
+  <!-- Highlight -->
+  <circle cx="15" cy="15" r="6" stroke="#FFFFFF" stroke-width="1" opacity="0.2"/>
+</svg>

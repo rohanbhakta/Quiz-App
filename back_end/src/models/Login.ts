@@ -32,7 +32,12 @@ const LoginSchema = new mongoose.Schema({
     minlength: [6, 'Password must be at least 6 characters long']
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  // Define indexes at schema level only, not in individual fields
+  indexes: [
+    { email: 1 },
+    { username: 1 }
+  ]
 });
 
 // Hash password before saving
@@ -98,10 +103,6 @@ LoginSchema.methods.comparePassword = async function(candidatePassword: string):
     return false;
   }
 };
-
-// Add index for better query performance
-LoginSchema.index({ email: 1 });
-LoginSchema.index({ username: 1 });
 
 const Login = mongoose.model<ILogin>('Login', LoginSchema);
 

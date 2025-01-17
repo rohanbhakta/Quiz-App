@@ -15,21 +15,8 @@ if (!JWT_SECRET) {
 // CORS configuration for auth routes
 const corsOptions = {
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: [
-    'X-CSRF-Token',
-    'X-Requested-With',
-    'Accept',
-    'Accept-Version',
-    'Content-Length',
-    'Content-MD5',
-    'Content-Type',
-    'Date',
-    'X-Api-Version',
-    'Authorization'
-  ],
-  credentials: true,
-  optionsSuccessStatus: 200
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 };
 
 // Apply CORS to all auth routes
@@ -38,10 +25,9 @@ router.use(cors(corsOptions));
 // Handle preflight requests
 router.options('*', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.status(200).send();
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.status(200).end();
 });
 
 // Log environment and configuration
@@ -57,9 +43,7 @@ router.post('/auth/signup', async (req, res) => {
     console.log('Signup attempt:', {
       email: req.body.email,
       username: req.body.username,
-      timestamp: new Date().toISOString(),
-      origin: req.headers.origin,
-      userAgent: req.headers['user-agent']
+      timestamp: new Date().toISOString()
     });
 
     const { email, username, password } = req.body;
@@ -97,11 +81,6 @@ router.post('/auth/signup', async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
-
     res.status(201).json({ token, userId: user._id, username: user.username });
   } catch (error: any) {
     console.error('Signup error:', {
@@ -124,9 +103,7 @@ router.post('/auth/signin', async (req, res) => {
   try {
     console.log('Signin attempt:', {
       emailOrUsername: req.body.emailOrUsername,
-      timestamp: new Date().toISOString(),
-      origin: req.headers.origin,
-      userAgent: req.headers['user-agent']
+      timestamp: new Date().toISOString()
     });
 
     const { emailOrUsername, password } = req.body;
@@ -146,12 +123,7 @@ router.post('/auth/signin', async (req, res) => {
 
     console.log('User lookup result:', {
       found: !!user,
-      timestamp: new Date().toISOString(),
-      ...(user ? {
-        id: user._id,
-        email: user.email,
-        username: user.username
-      } : {})
+      timestamp: new Date().toISOString()
     });
 
     if (!user) {
@@ -176,14 +148,8 @@ router.post('/auth/signin', async (req, res) => {
     console.log('Login successful:', {
       userId: user._id,
       username: user.username,
-      timestamp: new Date().toISOString(),
-      tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      timestamp: new Date().toISOString()
     });
-
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
 
     res.json({ token, userId: user._id, username: user.username });
   } catch (error) {
@@ -223,11 +189,6 @@ router.post('/auth/verify', async (req, res) => {
     if (!user) {
       return res.status(401).json({ message: 'Invalid token' });
     }
-
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
 
     res.json({ userId: user._id, email: user.email, username: user.username });
   } catch (error) {

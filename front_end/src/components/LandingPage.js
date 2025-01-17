@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -9,7 +9,8 @@ import {
   Grid,
   useTheme,
   Card,
-  CardContent
+  CardContent,
+  keyframes
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -19,6 +20,19 @@ import {
   Group as GroupIcon,
   Analytics as AnalyticsIcon
 } from '@mui/icons-material';
+
+// Define swing animation
+const swing = keyframes`
+  0% { transform: rotate(-5deg); }
+  50% { transform: rotate(3deg); }
+  100% { transform: rotate(-5deg); }
+`;
+
+// Define fade in animation
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+`;
 
 const FeatureCard = ({ icon: Icon, title, description }) => {
   const theme = useTheme();
@@ -52,29 +66,61 @@ const FeatureCard = ({ icon: Icon, title, description }) => {
 const LandingPage = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const [scrollPosition, setScrollPosition] = useState(0);
+  const [selectedOption, setSelectedOption] = useState(-1);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const position = window.pageYOffset;
+      setScrollPosition(position);
+      
+      // Calculate when to show the correct answer
+      const heroSection = document.getElementById('hero-section');
+      if (heroSection) {
+        const sectionHeight = heroSection.offsetHeight;
+        const scrollPercentage = (position / sectionHeight) * 100;
+        
+        if (scrollPercentage > 30) {
+          setSelectedOption(1); // Index of correct answer (Paris)
+        } else {
+          setSelectedOption(-1);
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
     <Box>
       {/* Hero Section */}
-      <Box sx={{
-        position: 'relative',
-        overflow: 'hidden',
-        pt: { xs: 10, md: 16 },
-        pb: { xs: 8, md: 12 },
-        background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 50%, ${theme.palette.primary.light} 100%)`,
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'radial-gradient(circle at 20% 150%, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%)',
-        }
-      }}>
+      <Box 
+        id="hero-section"
+        sx={{
+          position: 'relative',
+          overflow: 'hidden',
+          pt: { xs: 10, md: 16 },
+          pb: { xs: 8, md: 12 },
+          minHeight: '100vh',
+          background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 50%, ${theme.palette.primary.light} 100%)`,
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'radial-gradient(circle at 20% 150%, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 50%)',
+          }
+        }}>
         <Container maxWidth="lg">
           <Grid container spacing={4} alignItems="center">
-            <Grid item xs={12} md={7}>
+            <Grid item xs={12} md={7} sx={{
+              transform: `translateY(${scrollPosition * 0.3}px)`,
+              opacity: Math.max(0, 1 - scrollPosition / 500),
+              transition: 'transform 0.1s ease-out'
+            }}>
               <Box sx={{ position: 'relative', zIndex: 1 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                   <Box
@@ -161,6 +207,8 @@ const LandingPage = () => {
             <Grid item xs={12} md={5}>
               <Box sx={{ 
                 position: 'relative',
+                transform: `translateY(${scrollPosition * -0.2}px)`,
+                transition: 'transform 0.1s ease-out',
                 '&::before': {
                   content: '""',
                   position: 'absolute',
@@ -173,16 +221,46 @@ const LandingPage = () => {
                   borderRadius: '50%'
                 }
               }}>
+                {/* Nail Image */}
+                <Box
+                  component="img"
+                  src="/nail.svg"
+                  alt="Nail"
+                  sx={{
+                    position: 'absolute',
+                    top: -15,
+                    left: 20,
+                    width: 30,
+                    height: 30,
+                    zIndex: 2,
+                    filter: 'drop-shadow(2px 2px 4px rgba(0,0,0,0.3))',
+                    transform: 'rotate(5deg)'
+                  }}
+                />
+                {/* Sample Question Card */}
                 <Paper sx={{ 
                   p: 4,
                   borderRadius: 4,
                   background: 'rgba(255,255,255,0.1)',
                   backdropFilter: 'blur(10px)',
                   boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-                  transform: 'rotate(-5deg)',
-                  transition: 'transform 0.3s ease',
+                  transformOrigin: '20px 0',
+                  animation: `${swing} 6s ease-in-out infinite`,
                   '&:hover': {
-                    transform: 'rotate(-3deg) translateY(-8px)',
+                    animationPlayState: 'paused',
+                  },
+                  position: 'relative',
+                  '&::after': {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: 20,
+                    width: 2,
+                    height: 15,
+                    background: 'rgba(255,255,255,0.3)',
+                    transform: 'rotate(5deg)',
+                    transformOrigin: 'top',
+                    boxShadow: '0 0 8px rgba(255,255,255,0.3)'
                   }
                 }}>
                   <Typography variant="h5" sx={{ color: 'white', mb: 2 }}>
@@ -194,15 +272,17 @@ const LandingPage = () => {
                   {['London', 'Paris', 'Berlin', 'Madrid'].map((option, i) => (
                     <Button
                       key={i}
-                      variant={i === 1 ? 'contained' : 'outlined'}
+                      variant={i === selectedOption ? 'contained' : 'outlined'}
                       fullWidth
                       sx={{ 
                         mb: 1,
-                        color: i === 1 ? theme.palette.primary.main : 'white',
+                        color: i === selectedOption ? theme.palette.primary.main : 'white',
                         borderColor: 'rgba(255,255,255,0.5)',
-                        backgroundColor: i === 1 ? 'white' : 'transparent',
+                        backgroundColor: i === selectedOption ? 'white' : 'transparent',
+                        transition: 'all 0.3s ease',
+                        animation: i === selectedOption ? `${fadeIn} 0.5s ease forwards` : 'none',
                         '&:hover': {
-                          backgroundColor: i === 1 ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.1)',
+                          backgroundColor: i === selectedOption ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.1)',
                           borderColor: 'white'
                         }
                       }}

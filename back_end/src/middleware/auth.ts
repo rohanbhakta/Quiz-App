@@ -17,15 +17,12 @@ interface AuthRequest extends Request {
 
 export const authMiddleware = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
-
     // Handle preflight
     if (req.method === 'OPTIONS') {
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      return res.status(200).send();
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      return res.status(200).end();
     }
 
     // Log auth attempt
@@ -33,7 +30,6 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
       path: req.path,
       method: req.method,
       origin: req.headers.origin,
-      userAgent: req.headers['user-agent'],
       timestamp: new Date().toISOString()
     });
 
