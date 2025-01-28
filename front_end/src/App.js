@@ -7,7 +7,6 @@ import CreateQuiz from './components/CreateQuiz';
 import PlayQuiz from './components/PlayQuiz';
 import QuizResults from './components/QuizResults';
 import ShareQuiz from './components/ShareQuiz';
-import ThemeToggle from './components/ThemeToggle';
 import SignIn from './components/SignIn';
 import SignUp from './components/SignUp';
 import Dashboard from './components/Dashboard';
@@ -42,12 +41,11 @@ function App() {
         transition: 'background-color 0.3s ease'
       }}>
         <Router>
-          <ThemeToggle onToggle={toggleTheme} />
-          <Header onToggleTheme={toggleTheme} />
+          <Header darkMode={mode === 'dark'} onThemeToggle={toggleTheme} />
           <Routes>
             <Route path="/" element={
               <AuthGuard>
-                <LandingPage />
+                <LandingPage darkMode={mode === 'dark'} onThemeToggle={toggleTheme} />
               </AuthGuard>
             } />
             <Route path="/signin" element={

@@ -21,6 +21,13 @@ import {
 import { api } from '../services/api';
 import { EmojiEvents as TrophyIcon } from '@mui/icons-material';
 
+const getAvatarUrl = (avatar) => {
+  if (!avatar || typeof avatar === 'string') {
+    return null;
+  }
+  return `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatar.seed}&backgroundColor=${avatar.backgroundColor.replace('#', '')}`;
+};
+
 const QuizResults = () => {
   const theme = useTheme();
   const { id } = useParams();
@@ -194,18 +201,48 @@ const QuizResults = () => {
                 </Typography>
                 {results.length > 0 ? (
                   <>
-                    <Typography 
-                      variant="h5"
-                      sx={{
-                        background: theme.palette.gradient.primary,
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        fontWeight: 600,
-                        mb: 1
-                      }}
-                    >
-                      {results[0].player.name}
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                      {getAvatarUrl(results[0].player.avatar) ? (
+                        <Box
+                          component="img"
+                          src={getAvatarUrl(results[0].player.avatar)}
+                          alt={`${results[0].player.name}'s avatar`}
+                          sx={{ 
+                            width: '48px',
+                            height: '48px',
+                            backgroundColor: results[0].player.avatar.backgroundColor,
+                            borderRadius: '50%',
+                            boxShadow: theme.shadows[2],
+                            p: 0.5
+                          }}
+                        />
+                      ) : (
+                        <Box sx={{ 
+                          width: '48px',
+                          height: '48px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '32px',
+                          backgroundColor: theme.palette.background.paper,
+                          borderRadius: '50%',
+                          boxShadow: theme.shadows[2]
+                        }}>
+                          <span role="img" aria-label="Default user avatar">👤</span>
+                        </Box>
+                      )}
+                      <Typography 
+                        variant="h5"
+                        sx={{
+                          background: theme.palette.gradient.primary,
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          fontWeight: 600
+                        }}
+                      >
+                        {results[0].player.name}
+                      </Typography>
+                    </Box>
                     <Typography variant="body2" color="text.secondary">
                       Combined Score: {results[0].combinedScore.toFixed(1)}
                     </Typography>
@@ -277,6 +314,7 @@ const QuizResults = () => {
               <TableHead>
                 <TableRow sx={{ background: theme.palette.gradient.primary }}>
                   <TableCell sx={{ color: 'white', fontWeight: 600 }}>Rank</TableCell>
+                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>Avatar</TableCell>
                   <TableCell sx={{ color: 'white', fontWeight: 600 }}>Player</TableCell>
                   <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Score</TableCell>
                   <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Time Efficiency</TableCell>
@@ -315,7 +353,9 @@ const QuizResults = () => {
                               ][index]
                             }}
                           >
-                            {['🏆', '🥈', '🥉'][index]}
+                            <span role="img" aria-label={['Gold trophy', 'Silver medal', 'Bronze medal'][index]}>
+                              {['🏆', '🥈', '🥉'][index]}
+                            </span>
                           </Typography>
                         )}
                         <Typography 
@@ -328,6 +368,37 @@ const QuizResults = () => {
                           {index + 1}
                         </Typography>
                       </Box>
+                    </TableCell>
+                    <TableCell>
+                      {getAvatarUrl(result.player.avatar) ? (
+                        <Box
+                          component="img"
+                          src={getAvatarUrl(result.player.avatar)}
+                          alt={`${result.player.name}'s avatar`}
+                          sx={{ 
+                            width: '36px',
+                            height: '36px',
+                            backgroundColor: result.player.avatar.backgroundColor,
+                            borderRadius: '50%',
+                            boxShadow: theme.shadows[2],
+                            p: 0.5
+                          }}
+                        />
+                      ) : (
+                        <Box sx={{ 
+                          width: '36px',
+                          height: '36px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '24px',
+                          backgroundColor: theme.palette.background.paper,
+                          borderRadius: '50%',
+                          boxShadow: theme.shadows[2]
+                        }}>
+                          <span role="img" aria-label="Default user avatar">👤</span>
+                        </Box>
+                      )}
                     </TableCell>
                     <TableCell>{result.player.name}</TableCell>
                     <TableCell align="right">
@@ -388,7 +459,7 @@ const QuizResults = () => {
                 ))}
                 {results.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
+                    <TableCell colSpan={6} align="center">
                       No results yet
                     </TableCell>
                   </TableRow>

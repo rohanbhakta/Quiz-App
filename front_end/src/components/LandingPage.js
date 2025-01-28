@@ -10,6 +10,7 @@ import {
   useTheme,
   Card,
   CardContent,
+  IconButton,
   keyframes
 } from '@mui/material';
 import {
@@ -18,7 +19,9 @@ import {
   Timer as TimerIcon,
   EmojiEvents as TrophyIcon,
   Group as GroupIcon,
-  Analytics as AnalyticsIcon
+  Analytics as AnalyticsIcon,
+  Brightness4 as DarkIcon,
+  Brightness7 as LightIcon
 } from '@mui/icons-material';
 
 // Define swing animation
@@ -63,7 +66,7 @@ const FeatureCard = ({ icon: Icon, title, description }) => {
   );
 };
 
-const LandingPage = () => {
+const LandingPage = ({ darkMode, onThemeToggle }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const [scrollPosition, setScrollPosition] = useState(0);
@@ -115,6 +118,26 @@ const LandingPage = () => {
           }
         }}>
         <Container maxWidth="lg">
+          {/* Theme Toggle */}
+          <Box sx={{ 
+            position: 'absolute',
+            top: 20,
+            right: 20,
+            zIndex: 2
+          }}>
+            <IconButton 
+              onClick={onThemeToggle} 
+              sx={{
+                color: 'white',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                }
+              }}
+            >
+              {darkMode ? <LightIcon /> : <DarkIcon />}
+            </IconButton>
+          </Box>
+
           <Grid container spacing={4} alignItems="center">
             <Grid item xs={12} md={7} sx={{
               transform: `translateY(${scrollPosition * 0.3}px)`,
@@ -372,7 +395,7 @@ const LandingPage = () => {
             <Button
               variant="contained"
               size="large"
-              onClick={() => navigate('/create')}
+              onClick={() => navigate('/signin')}
               sx={{ 
                 py: 2,
                 px: 6,

@@ -174,7 +174,7 @@ export const api = {
     }
   },
 
-  createQuiz: async (title, questions) => {
+  createQuiz: async (title, questions, theme = 'blue', type = 'quiz') => {
     try {
       if (!title || !questions || !Array.isArray(questions)) {
         throw new Error('Invalid quiz data format');
@@ -189,7 +189,9 @@ export const api = {
 
       const response = await axiosInstance.post('/api/quizzes', {
         title: title.trim(),
-        questions: formattedQuestions
+        questions: formattedQuestions,
+        theme,
+        type
       });
 
       return response.data;
@@ -215,9 +217,9 @@ export const api = {
     }
   },
 
-  joinQuiz: async (quizId, name) => {
+  joinQuiz: async (quizId, name, avatar) => {
     try {
-      const response = await axiosInstance.post(`/api/quizzes/${quizId}/join`, { name });
+      const response = await axiosInstance.post(`/api/quizzes/${quizId}/join`, { name, avatar });
       return response.data;
     } catch (error) {
       console.error('Failed to join quiz:', {
