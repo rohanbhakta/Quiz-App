@@ -56,6 +56,22 @@ const CreateQuiz = () => {
     setQuestions(newQuestions);
   };
 
+  const addOption = (questionIndex) => {
+    if (type !== 'poll') return;
+    const newQuestions = [...questions];
+    newQuestions[questionIndex].options.push('');
+    setQuestions(newQuestions);
+  };
+
+  const removeOption = (questionIndex, optionIndex) => {
+    if (type !== 'poll') return;
+    const newQuestions = [...questions];
+    if (newQuestions[questionIndex].options.length > 2) { // Minimum 2 options
+      newQuestions[questionIndex].options.splice(optionIndex, 1);
+      setQuestions(newQuestions);
+    }
+  };
+
   const handleCorrectAnswerChange = (questionIndex, optionIndex) => {
     if (type === 'poll') return; // No correct answers in polls
     const newQuestions = [...questions];
@@ -66,7 +82,7 @@ const CreateQuiz = () => {
   const addQuestion = () => {
     setQuestions([...questions, {
       text: '',
-      options: ['', '', '', ''],
+      options: type === 'poll' ? ['', ''] : ['', '', '', ''], // Start with 2 options for polls, 4 for quizzes
       correctAnswer: type === 'poll' ? -1 : 0,
       timer: 30
     }]);
@@ -273,44 +289,65 @@ const CreateQuiz = () => {
 
                 <Box sx={{ mt: 3 }}>
                   <Typography variant="subtitle1" sx={{ mb: 2 }}>Options:</Typography>
-                  {question.options.map((option, optionIndex) => (
-                    <Box 
-                      key={optionIndex} 
-                      sx={{ 
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                        mb: 2
-                      }}
-                    >
-                      <TextField
-                        fullWidth
-                        label={`Option ${optionIndex + 1}`}
-                        value={option}
-                        onChange={(e) => handleOptionChange(questionIndex, optionIndex, e.target.value)}
-                        required
-                      />
-                      {type === 'quiz' && (
-                        <Button
-                          variant={question.correctAnswer === optionIndex ? "contained" : "outlined"}
-                          onClick={() => handleCorrectAnswerChange(questionIndex, optionIndex)}
-                          sx={{
-                            minWidth: 120,
-                            background: question.correctAnswer === optionIndex 
-                              ? theme.palette.gradient.primary 
-                              : 'transparent',
-                            '&:hover': {
+                  <Box sx={{ mb: 2 }}>
+                    {question.options.map((option, optionIndex) => (
+                      <Box 
+                        key={optionIndex} 
+                        sx={{ 
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          mb: 2
+                        }}
+                      >
+                        <TextField
+                          fullWidth
+                          label={`Option ${optionIndex + 1}`}
+                          value={option}
+                          onChange={(e) => handleOptionChange(questionIndex, optionIndex, e.target.value)}
+                          required
+                        />
+                        {type === 'quiz' ? (
+                          <Button
+                            variant={question.correctAnswer === optionIndex ? "contained" : "outlined"}
+                            onClick={() => handleCorrectAnswerChange(questionIndex, optionIndex)}
+                            sx={{
+                              minWidth: 120,
                               background: question.correctAnswer === optionIndex 
-                                ? theme.palette.gradient.hover 
-                                : theme.palette.action.hover
-                            }
-                          }}
-                        >
-                          {question.correctAnswer === optionIndex ? "Correct ✓" : "Mark Correct"}
-                        </Button>
-                      )}
-                    </Box>
-                  ))}
+                                ? theme.palette.gradient.primary 
+                                : 'transparent',
+                              '&:hover': {
+                                background: question.correctAnswer === optionIndex 
+                                  ? theme.palette.gradient.hover 
+                                  : theme.palette.action.hover
+                              }
+                            }}
+                          >
+                            {question.correctAnswer === optionIndex ? "Correct ✓" : "Mark Correct"}
+                          </Button>
+                        ) : (
+                          <IconButton 
+                            onClick={() => removeOption(questionIndex, optionIndex)}
+                            disabled={question.options.length <= 2}
+                            sx={{ color: theme.palette.text.secondary }}
+                          >
+                            <RemoveIcon />
+                          </IconButton>
+                        )}
+                      </Box>
+                    ))}
+                    {type === 'poll' && (
+                      <Button
+                        startIcon={<AddIcon />}
+                        onClick={() => addOption(questionIndex)}
+                        variant="outlined"
+                        size="small"
+                        sx={{ mt: 1 }}
+                      >
+                        Add Option
+                      </Button>
+                    )}
+                  </Box>
                 </Box>
 
                 {type === 'quiz' && (

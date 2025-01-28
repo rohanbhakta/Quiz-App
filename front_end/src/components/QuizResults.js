@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useParams } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
@@ -19,8 +20,7 @@ import {
   Grid,
   useTheme,
   Tabs,
-  Tab,
-  alpha
+  Tab
 } from '@mui/material';
 import { api } from '../services/api';
 import { 
@@ -28,7 +28,8 @@ import {
   Leaderboard as LeaderboardIcon,
   Assignment as AssignmentIcon,
   Check as CheckIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Poll as PollIcon
 } from '@mui/icons-material';
 
 const getAvatarUrl = (avatar) => {
@@ -50,12 +51,68 @@ const QuizResults = () => {
   const [userAnswers, setUserAnswers] = useState([]);
   const fireworksRef = useRef(null);
 
+  useEffect(() => {
+    if (results.length > 0 && !showFireworks && quiz?.type === 'quiz') {
+      setShowFireworks(true);
+      triggerFireworks();
+    }
+
+    return () => {
+      if (fireworksRef.current) {
+        cancelAnimationFrame(fireworksRef.current);
+      }
+    };
+  }, [results, showFireworks, quiz?.type]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        if (id) {
+          const [quizData, resultsData] = await Promise.all([
+            api.getQuiz(id),
+            api.getResults(id)
+          ]);
+          setQuiz(quizData);
+          setResults(resultsData);
+
+          if (quizData.type === 'quiz') {
+            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+            if (token) {
+              try {
+                const answersData = await api.getUserAnswers(id);
+                setUserAnswers(answersData || []);
+              } catch (err) {
+                console.log('User not authenticated or no answers found');
+              }
+            }
+          }
+        }
+      } catch (err) {
+        setError('Failed to load results. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+
+    const interval = setInterval(async () => {
+      try {
+        const resultsData = await api.getResults(id);
+        setResults(resultsData);
+      } catch (err) {
+        console.error('Error polling results:', err);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [id]);
+
   const triggerFireworks = () => {
     const duration = 3 * 1000;
     const end = Date.now() + duration;
 
     const frame = () => {
-      // Gold fireworks from left
       confetti({
         particleCount: 3,
         angle: 60,
@@ -63,7 +120,6 @@ const QuizResults = () => {
         origin: { x: 0 },
         colors: ['#FFD700']
       });
-      // Silver fireworks from right
       confetti({
         particleCount: 3,
         angle: 120,
@@ -71,7 +127,6 @@ const QuizResults = () => {
         origin: { x: 1 },
         colors: ['#C0C0C0']
       });
-      // Bronze fireworks from center
       confetti({
         particleCount: 3,
         angle: 90,
@@ -92,62 +147,32 @@ const QuizResults = () => {
     setCurrentTab(newValue);
   };
 
-  useEffect(() => {
-    if (results.length > 0 && !showFireworks) {
-      setShowFireworks(true);
-      triggerFireworks();
+  // Process answer distribution data
+  const answerDistribution = useMemo(() => {
+    if (!quiz?.questions || !results.length) {
+      return [];
     }
 
-    return () => {
-      if (fireworksRef.current) {
-        cancelAnimationFrame(fireworksRef.current);
-      }
-    };
-  }, [results, showFireworks]);
+    return quiz.questions.map((question, qIndex) => {
+      const optionCounts = question.options.map((option, index) => ({
+        option: `Option ${index + 1}`,
+        text: option,
+        count: 0
+      }));
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        if (id) {
-          const [quizData, resultsData] = await Promise.all([
-            api.getQuiz(id),
-            api.getResults(id)
-          ]);
-          setQuiz(quizData);
-          setResults(resultsData);
-
-          // Only try to get user answers if user is authenticated
-          const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-          if (token) {
-            try {
-              const answersData = await api.getUserAnswers(id);
-              setUserAnswers(answersData || []);
-            } catch (err) {
-              console.log('User not authenticated or no answers found');
-            }
-          }
+      results.forEach(result => {
+        const answer = result.answers.find(a => a.questionId === question.id);
+        if (answer !== undefined && answer.selectedOption >= 0) {
+          optionCounts[answer.selectedOption].count++;
         }
-      } catch (err) {
-        setError('Failed to load results. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
+      });
 
-    fetchData();
-
-    // Poll for new results every 5 seconds
-    const interval = setInterval(async () => {
-      try {
-        const resultsData = await api.getResults(id);
-        setResults(resultsData);
-      } catch (err) {
-        console.error('Error polling results:', err);
-      }
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [id]);
+      return {
+        questionText: question.text,
+        options: optionCounts
+      };
+    });
+  }, [quiz, results]);
 
   const formatTime = (seconds) => {
     return `${seconds.toFixed(1)}s`;
@@ -157,15 +182,7 @@ const QuizResults = () => {
     return (
       <Container>
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, gap: 2 }}>
-          <CircularProgress 
-            size={60}
-            sx={{ 
-              color: theme.palette.primary.light,
-              '& .MuiCircularProgress-circle': {
-                strokeLinecap: 'round',
-              }
-            }}
-          />
+          <CircularProgress size={60} />
           <Typography variant="h6" color="text.secondary">
             Loading Results...
           </Typography>
@@ -191,614 +208,146 @@ const QuizResults = () => {
   }
 
   const totalParticipants = results.length;
+
+  // For polls, only show the answer distribution
+  if (quiz.type === 'poll') {
+    return (
+      <Container maxWidth="md">
+        <Box sx={{ mt: 6, mb: 8 }}>
+          <Typography 
+            variant="h2" 
+            gutterBottom
+            sx={{
+              background: theme.palette.gradient.primary,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              textAlign: 'center',
+              mb: 3
+            }}
+          >
+            Poll Results
+          </Typography>
+          <Typography 
+            variant="h5" 
+            color="text.secondary" 
+            sx={{ mb: 4, textAlign: 'center' }}
+          >
+            {quiz.title}
+          </Typography>
+
+          <Card sx={{
+            background: theme.palette.gradient.background,
+            borderRadius: 2,
+            boxShadow: theme.shadows[4],
+            mb: 4
+          }}>
+            <CardContent sx={{ p: 3 }}>
+              <Typography 
+                color="primary" 
+                gutterBottom
+                sx={{ 
+                  fontSize: '1.1rem',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}
+              >
+                <PollIcon /> Total Responses
+              </Typography>
+              <Typography 
+                variant="h3"
+                sx={{
+                  background: theme.palette.gradient.primary,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontWeight: 600
+                }}
+              >
+                {totalParticipants}
+              </Typography>
+            </CardContent>
+          </Card>
+
+          <Box sx={{ mt: 4, mb: 6 }}>
+            {answerDistribution.map((questionData, index) => (
+              <Paper
+                key={index}
+                sx={{
+                  p: 3,
+                  mb: 3,
+                  borderRadius: 2,
+                  boxShadow: theme.shadows[4],
+                  background: theme.palette.gradient.background
+                }}
+              >
+                <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, fontWeight: 500 }}>
+                  {questionData.questionText}
+                </Typography>
+                <Box sx={{ height: 300, width: '100%' }}>
+                  <ResponsiveContainer>
+                    <BarChart
+                      data={questionData.options}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="option"
+                        tick={{ fill: theme.palette.text.primary }}
+                      />
+                      <YAxis 
+                        label={{ 
+                          value: 'Number of Responses', 
+                          angle: -90, 
+                          position: 'insideLeft',
+                          fill: theme.palette.text.primary
+                        }}
+                        tick={{ fill: theme.palette.text.primary }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: theme.palette.background.paper,
+                          border: `1px solid ${theme.palette.divider}`,
+                          borderRadius: 1
+                        }}
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <Box sx={{ p: 1.5, background: theme.palette.background.paper }}>
+                                <Typography sx={{ mb: 1, fontWeight: 500 }}>
+                                  {data.text}
+                                </Typography>
+                                <Typography color="text.secondary">
+                                  Responses: {data.count}
+                                </Typography>
+                              </Box>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar
+                        dataKey="count"
+                        fill={theme.palette.primary.main}
+                        radius={[4, 4, 0, 0]}
+                        maxBarSize={60}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Paper>
+            ))}
+          </Box>
+        </Box>
+      </Container>
+    );
+  }
+
+  // For quizzes, show the full leaderboard and report tabs
   const averageScore = totalParticipants > 0
     ? results.reduce((acc, curr) => acc + curr.score, 0) / totalParticipants
     : 0;
-
-  const renderLeaderboard = () => (
-      <Box sx={{ 
-        mt: 6, 
-        mb: 8,
-        '@keyframes fadeIn': {
-          '0%': {
-            opacity: 0,
-            transform: 'translateY(20px)'
-          },
-          '100%': {
-            opacity: 1,
-            transform: 'translateY(0)'
-          }
-        },
-        '@keyframes bounce': {
-          '0%, 100%': {
-            transform: 'translateY(0)'
-          },
-          '50%': {
-            transform: 'translateY(-5px)'
-          }
-        }
-      }}>
-
-        <Grid container spacing={3} sx={{ mb: 4, mt: 2 }}>
-          <Grid item xs={12} sm={6} md={4}>
-            <Card sx={{
-              background: theme.palette.gradient.background,
-              borderRadius: 2,
-              boxShadow: theme.shadows[4],
-              height: '100%',
-              transition: 'transform 0.3s ease-in-out',
-              '&:hover': {
-                transform: 'translateY(-8px)',
-                boxShadow: theme.shadows[8]
-              },
-              animation: 'fadeIn 0.8s ease-out 0.4s backwards'
-            }}>
-              <CardContent sx={{ p: 3 }}>
-                <Typography 
-                  color="primary" 
-                  gutterBottom
-                  sx={{ fontSize: '1.1rem', fontWeight: 500 }}
-                >
-                  Total Participants
-                </Typography>
-                <Typography 
-                  variant="h3"
-                  sx={{
-                    background: theme.palette.gradient.primary,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    fontWeight: 600
-                  }}
-                >
-                  {totalParticipants}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <Card sx={{
-              background: theme.palette.gradient.background,
-              borderRadius: 2,
-              boxShadow: theme.shadows[4],
-              height: '100%',
-              transition: 'transform 0.3s ease-in-out',
-              '&:hover': {
-                transform: 'translateY(-8px)',
-                boxShadow: theme.shadows[8]
-              },
-              animation: 'fadeIn 0.8s ease-out 0.6s backwards'
-            }}>
-              <CardContent sx={{ p: 3 }}>
-                <Typography 
-                  color="primary" 
-                  gutterBottom
-                  sx={{ 
-                    fontSize: '1.1rem',
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1
-                  }}
-                >
-                  <TrophyIcon sx={{ animation: 'bounce 2s infinite' }} /> Top Player
-                </Typography>
-                {results.length > 0 ? (
-                  <>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-                      {getAvatarUrl(results[0].player.avatar) ? (
-                        <Box
-                          component="img"
-                          src={getAvatarUrl(results[0].player.avatar)}
-                          alt={`${results[0].player.name}'s avatar`}
-                          sx={{ 
-                            width: '48px',
-                            height: '48px',
-                            backgroundColor: results[0].player.avatar.backgroundColor,
-                            borderRadius: '50%',
-                            boxShadow: theme.shadows[2],
-                            p: 0.5,
-                            animation: 'bounce 2s infinite'
-                          }}
-                        />
-                      ) : (
-                        <Box sx={{ 
-                          width: '48px',
-                          height: '48px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '32px',
-                          backgroundColor: theme.palette.background.paper,
-                          borderRadius: '50%',
-                          boxShadow: theme.shadows[2],
-                          animation: 'bounce 2s infinite'
-                        }}>
-                          <span role="img" aria-label="Default user avatar">👤</span>
-                        </Box>
-                      )}
-                      <Typography 
-                        variant="h5"
-                        sx={{
-                          background: theme.palette.gradient.primary,
-                          WebkitBackgroundClip: 'text',
-                          WebkitTextFillColor: 'transparent',
-                          fontWeight: 600
-                        }}
-                      >
-                        {results[0].player.name}
-                      </Typography>
-                    </Box>
-                    <Typography variant="body2" color="text.secondary">
-                      Combined Score: {results[0].combinedScore.toFixed(1)}
-                    </Typography>
-                  </>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    No players yet
-                  </Typography>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <Card sx={{
-              background: theme.palette.gradient.background,
-              borderRadius: 2,
-              boxShadow: theme.shadows[4],
-              height: '100%',
-              transition: 'transform 0.3s ease-in-out',
-              '&:hover': {
-                transform: 'translateY(-8px)',
-                boxShadow: theme.shadows[8]
-              },
-              animation: 'fadeIn 0.8s ease-out 0.8s backwards'
-            }}>
-              <CardContent sx={{ p: 3 }}>
-                <Typography 
-                  color="primary" 
-                  gutterBottom
-                  sx={{ fontSize: '1.1rem', fontWeight: 500 }}
-                >
-                  Average Score
-                </Typography>
-                <Typography 
-                  variant="h3"
-                  sx={{
-                    background: theme.palette.gradient.primary,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    fontWeight: 600
-                  }}
-                >
-                  {(averageScore / quiz.questions.length * 100).toFixed(1)}%
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-
-
-        <Paper sx={{ 
-          borderRadius: 2,
-          boxShadow: theme.shadows[4],
-          background: theme.palette.gradient.background,
-          overflow: 'hidden',
-          animation: 'fadeIn 0.8s ease-out 1.2s backwards'
-        }}>
-          <TableContainer sx={{ maxHeight: 440 }}>
-            <Table stickyHeader>
-              <TableHead>
-                <TableRow sx={{ 
-                  background: theme.palette.gradient.primary,
-                  '& th': {
-                    borderBottom: 'none'
-                  }
-                }}>
-                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>Rank</TableCell>
-                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>Avatar</TableCell>
-                  <TableCell sx={{ color: 'white', fontWeight: 600 }}>Player</TableCell>
-                  <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Score</TableCell>
-                  <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Time Efficiency</TableCell>
-                  <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Combined Rating</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {results.map((result, index) => (
-                  <TableRow 
-                    key={index}
-                    sx={{
-                      ...index < 3 ? { 
-                        background: [
-                          'linear-gradient(90deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 215, 0, 0.05) 100%)',
-                          'linear-gradient(90deg, rgba(192, 192, 192, 0.15) 0%, rgba(192, 192, 192, 0.05) 100%)',
-                          'linear-gradient(90deg, rgba(205, 127, 50, 0.15) 0%, rgba(205, 127, 50, 0.05) 100%)'
-                        ][index]
-                      } : {},
-                      transition: 'all 0.3s',
-                      '&:hover': {
-                        backgroundColor: `${theme.palette.action.hover} !important`,
-                        transform: 'scale(1.01)',
-                      },
-                      animation: `fadeIn 0.5s ease-out ${1.4 + index * 0.1}s backwards`
-                    }}
-                  >
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {index < 3 && (
-                          <Typography 
-                            component="span" 
-                            sx={{ 
-                              fontSize: '1.5rem',
-                              color: [
-                                '#FFD700',
-                                '#C0C0C0',
-                                '#CD7F32'
-                              ][index],
-                              animation: 'bounce 2s infinite',
-                              textShadow: '0 0 5px rgba(0,0,0,0.2)'
-                            }}
-                          >
-                            <span role="img" aria-label={['Gold trophy', 'Silver medal', 'Bronze medal'][index]}>
-                              {['🏆', '🥈', '🥉'][index]}
-                            </span>
-                          </Typography>
-                        )}
-                        <Typography 
-                          variant="h6" 
-                          sx={{
-                            fontWeight: index < 3 ? 700 : 400,
-                            color: index < 3 ? theme.palette.primary.main : 'inherit',
-                            textShadow: index < 3 ? '0 0 8px rgba(0,0,0,0.1)' : 'none'
-                          }}
-                        >
-                          {index + 1}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      {getAvatarUrl(result.player.avatar) ? (
-                        <Box
-                          component="img"
-                          src={getAvatarUrl(result.player.avatar)}
-                          alt={`${result.player.name}'s avatar`}
-                          sx={{ 
-                            width: index < 3 ? '48px' : '36px',
-                            height: index < 3 ? '48px' : '36px',
-                            backgroundColor: result.player.avatar.backgroundColor,
-                            borderRadius: '50%',
-                            boxShadow: theme.shadows[2],
-                            p: 0.5,
-                            transition: 'transform 0.2s',
-                            '&:hover': {
-                              transform: 'scale(1.1)'
-                            },
-                            animation: index < 3 ? 'bounce 2s infinite' : 'none'
-                          }}
-                        />
-                      ) : (
-                        <Box sx={{ 
-                          width: index < 3 ? '48px' : '36px',
-                          height: index < 3 ? '48px' : '36px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: index < 3 ? '32px' : '24px',
-                          backgroundColor: theme.palette.background.paper,
-                          borderRadius: '50%',
-                          boxShadow: theme.shadows[2],
-                          animation: index < 3 ? 'bounce 2s infinite' : 'none'
-                        }}>
-                          <span role="img" aria-label="Default user avatar">👤</span>
-                        </Box>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Typography 
-                        sx={{
-                          fontWeight: index < 3 ? 600 : 400,
-                          color: index < 3 ? theme.palette.primary.main : 'inherit'
-                        }}
-                      >
-                        {result.player.name}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                        <Typography>
-                          {result.score} / {quiz.questions.length}
-                        </Typography>
-                        <Typography 
-                          variant="caption" 
-                          sx={{ 
-                            color: 'white',
-                            backgroundColor: theme.palette.primary.main,
-                            px: 1,
-                            py: 0.5,
-                            borderRadius: 1,
-                            fontWeight: 500
-                          }}
-                        >
-                          {Math.round((result.score / quiz.questions.length) * 100)}%
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          {formatTime(result.averageResponseTime)}
-                        </Typography>
-                        <Typography 
-                          variant="body2"
-                          sx={{ 
-                            backgroundColor: theme.palette.primary.light,
-                            color: 'white',
-                            px: 1,
-                            py: 0.5,
-                            borderRadius: 1,
-                            fontWeight: 500
-                          }}
-                        >
-                          {result.timeEfficiency}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography 
-                        sx={{ 
-                          display: 'inline-block',
-                          background: index < 3 
-                            ? [
-                                'linear-gradient(45deg, #FFD700 30%, #FFA500 90%)',
-                                'linear-gradient(45deg, #C0C0C0 30%, #A9A9A9 90%)',
-                                'linear-gradient(45deg, #CD7F32 30%, #8B4513 90%)'
-                              ][index]
-                            : theme.palette.gradient.primary,
-                          color: 'white',
-                          px: 2,
-                          py: 0.5,
-                          borderRadius: 1,
-                          minWidth: 60,
-                          textAlign: 'center',
-                          fontWeight: index < 3 ? 700 : 600,
-                          boxShadow: index < 3 ? '0 2px 8px rgba(0,0,0,0.2)' : 'none'
-                        }}
-                      >
-                        {result.combinedScore.toFixed(1)}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {results.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} align="center">
-                      No results yet
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
-      </Box>
-  );
-
-  const renderReport = () => {
-    if (!quiz?.questions) {
-      return (
-        <Box sx={{ textAlign: 'center', py: 4 }}>
-          <Typography color="text.secondary">
-            Quiz not found
-          </Typography>
-        </Box>
-      );
-    }
-
-    // Find the current player's response
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const playerResult = results.find(result => {
-      if (token) {
-        return result.player.userId;
-      }
-      // For unauthenticated users, try to match by playerId from localStorage
-      const playerId = localStorage.getItem('currentPlayerId');
-      return playerId && result.player.id === playerId;
-    });
-
-    const playerAnswers = userAnswers.length > 0 ? userAnswers : 
-      (playerResult?.answers || []);
-
-    if (!playerResult) {
-      return (
-        <Box sx={{ textAlign: 'center', py: 4 }}>
-          <Typography color="text.secondary">
-            Please complete the quiz to see your report
-          </Typography>
-        </Box>
-      );
-    }
-
-    return (
-      <Box sx={{ mt: 2 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {quiz.questions.map((question, qIndex) => {
-            const userAnswer = playerAnswers.find(a => a.questionId === question.id);
-            const isCorrect = userAnswer?.selectedOption === question.correctAnswer;
-            const isUnattempted = !userAnswer;
-            
-            return (
-              <Paper
-                key={qIndex}
-                elevation={0}
-                sx={{
-                  p: 3,
-                  borderRadius: 2,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  animation: `fadeIn 0.5s ease-out ${0.1 * qIndex}s backwards`
-                }}
-              >
-                <Typography 
-                  variant="h6" 
-                  gutterBottom
-                  sx={{ 
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    color: isCorrect ? 'success.main' : 'error.main'
-                  }}
-                >
-                  {isCorrect ? <CheckIcon /> : <CloseIcon />}
-                  Question {qIndex + 1}
-                </Typography>
-                <Typography sx={{ mb: 2, fontWeight: 500 }}>
-                  {question.text}
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-                    Your Answer: {userAnswer ? question.options[userAnswer.selectedOption] : 'Not answered'}
-                  </Typography>
-                  <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-                    Correct Answer: {question.options[question.correctAnswer]}
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <Typography variant="subtitle1" fontWeight={500}>
-                      All Options:
-                    </Typography>
-                    {question.options.map((option, oIndex) => {
-                      const isUserAnswer = oIndex === userAnswer?.selectedOption;
-                      const isCorrectAnswer = oIndex === question.correctAnswer;
-                      
-                      return (
-                        <Paper
-                          key={oIndex}
-                          elevation={0}
-                          sx={{
-                            p: 2,
-                    backgroundColor: theme => {
-                      if (isCorrectAnswer) {
-                        return alpha(theme.palette.success.main, 0.1);
-                      }
-                      if (isUserAnswer && !isCorrect) {
-                        return alpha(theme.palette.error.main, 0.1);
-                      }
-                      if (isUnattempted) {
-                        return alpha(theme.palette.grey[500], 0.1);
-                      }
-                      return theme.palette.background.default;
-                    },
-                    color: theme => {
-                      if (isCorrectAnswer) {
-                        return theme.palette.success.main;
-                      }
-                      if (isUserAnswer && !isCorrect) {
-                        return theme.palette.error.main;
-                      }
-                      if (isUnattempted) {
-                        return theme.palette.grey[500];
-                      }
-                      return theme.palette.text.primary;
-                    },
-                            borderRadius: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            border: theme => {
-                              if (isCorrectAnswer) {
-                                return `2px solid ${theme.palette.success.main}`;
-                              }
-                              if (isUserAnswer && !isCorrect) {
-                                return `2px solid ${theme.palette.error.main}`;
-                              }
-                              if (isUnattempted) {
-                                return `2px solid ${theme.palette.grey[500]}`;
-                              }
-                              return `1px solid ${theme.palette.divider}`;
-                            }
-                          }}
-                        >
-                          <Box sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: 2,
-                            flex: 1
-                          }}>
-                            <Typography sx={{ flex: 1 }}>
-                              {option}
-                            </Typography>
-                            <Box sx={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: 1,
-                              minWidth: 140
-                            }}>
-                              {isCorrectAnswer && (
-                                <Typography 
-                                  component="span" 
-                                  sx={{ 
-                                    color: 'white',
-                                    fontWeight: 600,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 0.5
-                                  }}
-                                >
-                                  <CheckIcon fontSize="small" /> Correct
-                                </Typography>
-                              )}
-                              {isUserAnswer && !isCorrect && (
-                                <Typography 
-                                  component="span" 
-                                  sx={{ 
-                                    color: 'white',
-                                    fontWeight: 600,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 0.5
-                                  }}
-                                >
-                                  <CloseIcon fontSize="small" /> Your Answer
-                                </Typography>
-                              )}
-                            </Box>
-                          </Box>
-                        </Paper>
-                      );
-                    })}
-                  </Box>
-                </Box>
-                <Box sx={{ 
-                  mt: 2, 
-                  pt: 2, 
-                  borderTop: '1px solid',
-                  borderColor: 'divider',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2
-                }}>
-                  <Typography color="text.secondary">
-                    Response time: {userAnswer?.responseTime.toFixed(1)}s
-                  </Typography>
-                  <Typography 
-                    sx={{ 
-                      ml: 'auto',
-                      px: 2,
-                      py: 0.5,
-                      borderRadius: 1,
-                      backgroundColor: isCorrect ? 'success.main' : 'error.main',
-                      color: 'white',
-                      fontWeight: 500
-                    }}
-                  >
-                    Score: {userAnswer?.score || 0}
-                  </Typography>
-                </Box>
-              </Paper>
-            );
-          })}
-        </Box>
-      </Box>
-    );
-  };
 
   return (
     <Container maxWidth="md">
@@ -884,7 +433,443 @@ const QuizResults = () => {
           </Tabs>
         </Paper>
 
-        {currentTab === 0 ? renderLeaderboard() : renderReport()}
+        {currentTab === 0 ? (
+          <Box sx={{ mt: 6, mb: 8 }}>
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{
+                  background: theme.palette.gradient.background,
+                  borderRadius: 2,
+                  boxShadow: theme.shadows[4],
+                  height: '100%',
+                  transition: 'transform 0.3s ease-in-out',
+                  '&:hover': {
+                    transform: 'translateY(-8px)',
+                    boxShadow: theme.shadows[8]
+                  },
+                  animation: 'fadeIn 0.8s ease-out 0.4s backwards'
+                }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Typography 
+                      color="primary" 
+                      gutterBottom
+                      sx={{ fontSize: '1.1rem', fontWeight: 500 }}
+                    >
+                      Total Participants
+                    </Typography>
+                    <Typography 
+                      variant="h3"
+                      sx={{
+                        background: theme.palette.gradient.primary,
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        fontWeight: 600
+                      }}
+                    >
+                      {totalParticipants}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{
+                  background: theme.palette.gradient.background,
+                  borderRadius: 2,
+                  boxShadow: theme.shadows[4],
+                  height: '100%',
+                  transition: 'transform 0.3s ease-in-out',
+                  '&:hover': {
+                    transform: 'translateY(-8px)',
+                    boxShadow: theme.shadows[8]
+                  },
+                  animation: 'fadeIn 0.8s ease-out 0.6s backwards'
+                }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Typography 
+                      color="primary" 
+                      gutterBottom
+                      sx={{ 
+                        fontSize: '1.1rem',
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}
+                    >
+                      <TrophyIcon sx={{ animation: 'bounce 2s infinite' }} /> Top Player
+                    </Typography>
+                    {results.length > 0 ? (
+                      <>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                          {getAvatarUrl(results[0].player.avatar) ? (
+                            <Box
+                              component="img"
+                              src={getAvatarUrl(results[0].player.avatar)}
+                              alt={`${results[0].player.name}'s avatar`}
+                              sx={{ 
+                                width: '48px',
+                                height: '48px',
+                                backgroundColor: results[0].player.avatar.backgroundColor,
+                                borderRadius: '50%',
+                                boxShadow: theme.shadows[2],
+                                p: 0.5,
+                                animation: 'bounce 2s infinite'
+                              }}
+                            />
+                          ) : (
+                            <Box sx={{ 
+                              width: '48px',
+                              height: '48px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '32px',
+                              backgroundColor: theme.palette.background.paper,
+                              borderRadius: '50%',
+                              boxShadow: theme.shadows[2],
+                              animation: 'bounce 2s infinite'
+                            }}>
+                              <span role="img" aria-label="Default user avatar">👤</span>
+                            </Box>
+                          )}
+                          <Typography 
+                            variant="h5"
+                            sx={{
+                              background: theme.palette.gradient.primary,
+                              WebkitBackgroundClip: 'text',
+                              WebkitTextFillColor: 'transparent',
+                              fontWeight: 600
+                            }}
+                          >
+                            {results[0].player.name}
+                          </Typography>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary">
+                          Combined Score: {results[0].combinedScore.toFixed(1)}
+                        </Typography>
+                      </>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No players yet
+                      </Typography>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={4}>
+                <Card sx={{
+                  background: theme.palette.gradient.background,
+                  borderRadius: 2,
+                  boxShadow: theme.shadows[4],
+                  height: '100%',
+                  transition: 'transform 0.3s ease-in-out',
+                  '&:hover': {
+                    transform: 'translateY(-8px)',
+                    boxShadow: theme.shadows[8]
+                  },
+                  animation: 'fadeIn 0.8s ease-out 0.8s backwards'
+                }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Typography 
+                      color="primary" 
+                      gutterBottom
+                      sx={{ fontSize: '1.1rem', fontWeight: 500 }}
+                    >
+                      Average Score
+                    </Typography>
+                    <Typography 
+                      variant="h3"
+                      sx={{
+                        background: theme.palette.gradient.primary,
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        fontWeight: 600
+                      }}
+                    >
+                      {(averageScore / quiz.questions.length * 100).toFixed(1)}%
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+
+            <Paper sx={{ 
+              borderRadius: 2,
+              boxShadow: theme.shadows[4],
+              background: theme.palette.gradient.background,
+              overflow: 'hidden',
+              animation: 'fadeIn 0.8s ease-out 1.2s backwards'
+            }}>
+              <TableContainer sx={{ maxHeight: 440 }}>
+                <Table stickyHeader>
+                  <TableHead>
+                    <TableRow sx={{ 
+                      background: theme.palette.gradient.primary,
+                      '& th': {
+                        borderBottom: 'none'
+                      }
+                    }}>
+                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Rank</TableCell>
+                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Avatar</TableCell>
+                      <TableCell sx={{ color: 'white', fontWeight: 600 }}>Player</TableCell>
+                      <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Score</TableCell>
+                      <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Time Efficiency</TableCell>
+                      <TableCell align="right" sx={{ color: 'white', fontWeight: 600 }}>Combined Rating</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {results.map((result, index) => (
+                      <TableRow 
+                        key={index}
+                        sx={{
+                          ...index < 3 ? { 
+                            background: [
+                              'linear-gradient(90deg, rgba(255, 215, 0, 0.15) 0%, rgba(255, 215, 0, 0.05) 100%)',
+                              'linear-gradient(90deg, rgba(192, 192, 192, 0.15) 0%, rgba(192, 192, 192, 0.05) 100%)',
+                              'linear-gradient(90deg, rgba(205, 127, 50, 0.15) 0%, rgba(205, 127, 50, 0.05) 100%)'
+                            ][index]
+                          } : {},
+                          transition: 'all 0.3s',
+                          '&:hover': {
+                            backgroundColor: `${theme.palette.action.hover} !important`,
+                            transform: 'scale(1.01)',
+                          },
+                          animation: `fadeIn 0.5s ease-out ${1.4 + index * 0.1}s backwards`
+                        }}
+                      >
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {index < 3 && (
+                              <Typography 
+                                component="span" 
+                                sx={{ 
+                                  fontSize: '1.5rem',
+                                  color: [
+                                    '#FFD700',
+                                    '#C0C0C0',
+                                    '#CD7F32'
+                                  ][index],
+                                  animation: 'bounce 2s infinite',
+                                  textShadow: '0 0 5px rgba(0,0,0,0.2)'
+                                }}
+                              >
+                                <span role="img" aria-label={['Gold trophy', 'Silver medal', 'Bronze medal'][index]}>
+                                  {['🏆', '🥈', '🥉'][index]}
+                                </span>
+                              </Typography>
+                            )}
+                            <Typography 
+                              variant="h6" 
+                              sx={{
+                                fontWeight: index < 3 ? 700 : 400,
+                                color: index < 3 ? theme.palette.primary.main : 'inherit',
+                                textShadow: index < 3 ? '0 0 8px rgba(0,0,0,0.1)' : 'none'
+                              }}
+                            >
+                              {index + 1}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          {getAvatarUrl(result.player.avatar) ? (
+                            <Box
+                              component="img"
+                              src={getAvatarUrl(result.player.avatar)}
+                              alt={`${result.player.name}'s avatar`}
+                              sx={{ 
+                                width: index < 3 ? '48px' : '36px',
+                                height: index < 3 ? '48px' : '36px',
+                                backgroundColor: result.player.avatar.backgroundColor,
+                                borderRadius: '50%',
+                                boxShadow: theme.shadows[2],
+                                p: 0.5,
+                                transition: 'transform 0.2s',
+                                '&:hover': {
+                                  transform: 'scale(1.1)'
+                                },
+                                animation: index < 3 ? 'bounce 2s infinite' : 'none'
+                              }}
+                            />
+                          ) : (
+                            <Box sx={{ 
+                              width: index < 3 ? '48px' : '36px',
+                              height: index < 3 ? '48px' : '36px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: index < 3 ? '32px' : '24px',
+                              backgroundColor: theme.palette.background.paper,
+                              borderRadius: '50%',
+                              boxShadow: theme.shadows[2],
+                              animation: index < 3 ? 'bounce 2s infinite' : 'none'
+                            }}>
+                              <span role="img" aria-label="Default user avatar">👤</span>
+                            </Box>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Typography 
+                            sx={{
+                              fontWeight: index < 3 ? 600 : 400,
+                              color: index < 3 ? theme.palette.primary.main : 'inherit'
+                            }}
+                          >
+                            {result.player.name}
+                          </Typography>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                            <Typography>
+                              {result.score} / {quiz.questions.length}
+                            </Typography>
+                            <Typography 
+                              variant="caption" 
+                              sx={{ 
+                                color: 'white',
+                                backgroundColor: theme.palette.primary.main,
+                                px: 1,
+                                py: 0.5,
+                                borderRadius: 1,
+                                fontWeight: 500
+                              }}
+                            >
+                              {Math.round((result.score / quiz.questions.length) * 100)}%
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                            <Typography variant="caption" color="text.secondary">
+                              {formatTime(result.averageResponseTime)}
+                            </Typography>
+                            <Typography 
+                              variant="body2"
+                              sx={{ 
+                                backgroundColor: theme.palette.primary.light,
+                                color: 'white',
+                                px: 1,
+                                py: 0.5,
+                                borderRadius: 1,
+                                fontWeight: 500
+                              }}
+                            >
+                              {result.timeEfficiency}
+                            </Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography 
+                            sx={{ 
+                              display: 'inline-block',
+                              background: index < 3 
+                                ? [
+                                    'linear-gradient(45deg, #FFD700 30%, #FFA500 90%)',
+                                    'linear-gradient(45deg, #C0C0C0 30%, #A9A9A9 90%)',
+                                    'linear-gradient(45deg, #CD7F32 30%, #8B4513 90%)'
+                                  ][index]
+                                : theme.palette.gradient.primary,
+                              color: 'white',
+                              px: 2,
+                              py: 0.5,
+                              borderRadius: 1,
+                              minWidth: 60,
+                              textAlign: 'center',
+                              fontWeight: index < 3 ? 700 : 600,
+                              boxShadow: index < 3 ? '0 2px 8px rgba(0,0,0,0.2)' : 'none'
+                            }}
+                          >
+                            {result.combinedScore.toFixed(1)}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {results.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} align="center">
+                          No results yet
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+          </Box>
+        ) : (
+          <Box sx={{ mt: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {quiz.questions.map((question, qIndex) => {
+                const userAnswer = userAnswers.find(a => a.questionId === question.id);
+                const isCorrect = userAnswer?.selectedOption === question.correctAnswer;
+                
+                return (
+                  <Paper
+                    key={qIndex}
+                    elevation={0}
+                    sx={{
+                      p: 3,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      animation: `fadeIn 0.5s ease-out ${0.1 * qIndex}s backwards`
+                    }}
+                  >
+                    <Typography 
+                      variant="h6" 
+                      gutterBottom
+                      sx={{ 
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        color: isCorrect ? 'success.main' : 'error.main'
+                      }}
+                    >
+                      {isCorrect ? <CheckIcon /> : <CloseIcon />}
+                      Question {qIndex + 1}
+                    </Typography>
+                    <Typography sx={{ mb: 2, fontWeight: 500 }}>
+                      {question.text}
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+                        Your Answer: {userAnswer ? question.options[userAnswer.selectedOption] : 'Not answered'}
+                      </Typography>
+                      <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+                        Correct Answer: {question.options[question.correctAnswer]}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ 
+                      mt: 2, 
+                      pt: 2, 
+                      borderTop: '1px solid',
+                      borderColor: 'divider',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2
+                    }}>
+                      <Typography color="text.secondary">
+                        Response time: {userAnswer?.responseTime.toFixed(1)}s
+                      </Typography>
+                      <Typography 
+                        sx={{ 
+                          ml: 'auto',
+                          px: 2,
+                          py: 0.5,
+                          borderRadius: 1,
+                          backgroundColor: isCorrect ? 'success.main' : 'error.main',
+                          color: 'white',
+                          fontWeight: 500
+                        }}
+                      >
+                        {isCorrect ? 'Correct' : 'Incorrect'}
+                      </Typography>
+                    </Box>
+                  </Paper>
+                );
+              })}
+            </Box>
+          </Box>
+        )}
       </Box>
     </Container>
   );
