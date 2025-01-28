@@ -14,6 +14,8 @@ export interface IQuiz extends Document {
   title: string;
   questions: IQuestion[];
   createdAt: Date;
+  theme: string;  // Theme name (e.g., 'blue', 'purple', etc.)
+  type: string;   // 'quiz' or 'poll'
 }
 
 const QuestionSchema = new Schema({
@@ -62,6 +64,18 @@ const QuizSchema = new Schema({
     type: String, 
     required: true,
     trim: true
+  },
+  theme: {
+    type: String,
+    required: true,
+    default: 'blue',
+    enum: ['blue', 'purple', 'green', 'orange', 'pink']  // Available theme options
+  },
+  type: {
+    type: String,
+    required: true,
+    default: 'quiz',
+    enum: ['quiz', 'poll']  // Available content types
   },
   questions: {
     type: [QuestionSchema],

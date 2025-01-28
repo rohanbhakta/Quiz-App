@@ -32,7 +32,6 @@ app.use((req, res, next) => {
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  
 }));
 
 // Handle preflight requests
@@ -92,7 +91,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 connectDB();
 
 // Quiz routes
-app.get('/api/quizzes/user', authMiddleware, async (req, res) => {
+app.get('/api/quizzes/user', authMiddleware, async (req: express.Request, res: express.Response) => {
   try {
     const userId = (req as any).user.userId;
     const quizzes = await Quiz.find({ creatorId: new mongoose.Types.ObjectId(userId) }).sort({ createdAt: -1 });
@@ -126,7 +125,7 @@ app.get('/api/quizzes/user', authMiddleware, async (req, res) => {
   }
 });
 
-app.delete('/api/quizzes/:id', authMiddleware, async (req, res) => {
+app.delete('/api/quizzes/:id', authMiddleware, async (req: express.Request, res: express.Response) => {
   try {
     const userId = (req as any).user.userId;
     const quiz = await Quiz.findOne({ id: req.params.id });
@@ -148,7 +147,7 @@ app.delete('/api/quizzes/:id', authMiddleware, async (req, res) => {
   }
 });
 
-app.delete('/api/auth/account', authMiddleware, async (req, res) => {
+app.delete('/api/auth/account', authMiddleware, async (req: express.Request, res: express.Response) => {
   try {
     const userId = (req as any).user.userId;
     const userQuizzes = await Quiz.find({ creatorId: new mongoose.Types.ObjectId(userId) });
@@ -167,9 +166,9 @@ app.delete('/api/auth/account', authMiddleware, async (req, res) => {
   }
 });
 
-app.post('/api/quizzes', authMiddleware, async (req, res) => {
+app.post('/api/quizzes', authMiddleware, async (req: express.Request, res: express.Response) => {
   try {
-    const { title, questions } = req.body;
+    const { title, questions, theme = 'blue', type = 'quiz' } = req.body;
 
     if (!title || !questions || !Array.isArray(questions) || questions.length === 0) {
       return res.status(400).json({ message: 'Invalid quiz data' });
@@ -186,18 +185,26 @@ app.post('/api/quizzes', authMiddleware, async (req, res) => {
       id: uuidv4(),
       creatorId: new mongoose.Types.ObjectId(userId),
       title,
-      questions: validatedQuestions
+      questions: validatedQuestions,
+      theme,
+      type
     });
 
     const savedQuiz = await quiz.save();
     res.status(201).json(savedQuiz);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating quiz:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        message: 'Validation error', 
+        errors: Object.values(error.errors).map((err: any) => err.message) 
+      });
+    }
     res.status(500).json({ message: 'Error creating quiz' });
   }
 });
 
-app.get('/api/quizzes/:id', async (req, res) => {
+app.get('/api/quizzes/:id', async (req: express.Request, res: express.Response) => {
   try {
     const quiz = await Quiz.findOne({ id: req.params.id });
     if (!quiz) {
@@ -210,20 +217,36 @@ app.get('/api/quizzes/:id', async (req, res) => {
   }
 });
 
-app.post('/api/quizzes/:id/join', async (req, res) => {
+app.post('/api/quizzes/:id/join', async (req: express.Request, res: express.Response) => {
   try {
-    const { name } = req.body;
+    const { name, avatar } = req.body;
     const quizId = req.params.id;
+
+    if (!name || !avatar) {
+      return res.status(400).json({ message: 'Name and avatar are required' });
+    }
 
     const quiz = await Quiz.findOne({ id: quizId });
     if (!quiz) {
       return res.status(404).json({ message: 'Quiz not found' });
     }
 
+    // Validate avatar configuration
+    const requiredFields = ['style', 'seed', 'backgroundColor'];
+
+    const missingFields = requiredFields.filter(field => !avatar.hasOwnProperty(field));
+    if (missingFields.length > 0) {
+      return res.status(400).json({ 
+        message: 'Invalid avatar configuration', 
+        missingFields 
+      });
+    }
+
     const player = new Player({
       id: uuidv4(),
       name,
-      quizId
+      quizId,
+      avatar
     });
 
     await player.save();
@@ -234,7 +257,7 @@ app.post('/api/quizzes/:id/join', async (req, res) => {
   }
 });
 
-app.post('/api/quizzes/:id/submit', async (req, res) => {
+app.post('/api/quizzes/:id/submit', async (req: express.Request, res: express.Response) => {
   try {
     const { playerId, answers } = req.body;
     const quizId = req.params.id;
@@ -284,7 +307,7 @@ app.post('/api/quizzes/:id/submit', async (req, res) => {
   }
 });
 
-app.get('/api/quizzes/:id/results', async (req, res) => {
+app.get('/api/quizzes/:id/results', async (req: express.Request, res: express.Response) => {
   try {
     const quiz = await Quiz.findOne({ id: req.params.id });
     if (!quiz) {

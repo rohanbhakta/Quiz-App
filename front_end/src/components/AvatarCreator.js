@@ -4,12 +4,18 @@ import {
   Typography,
   Grid,
   Paper,
-  useTheme
+  ThemeProvider,
+  createTheme
 } from '@mui/material';
 
-const AvatarCreator = ({ value, onChange }) => {
-  const theme = useTheme();
-  
+// Create a light theme
+const lightTheme = createTheme({
+  palette: {
+    mode: 'light',
+  }
+});
+
+const AvatarCreator = ({ value, onChange, themeColors }) => {
   // Predefined avatars with complete configuration - 5 male and 5 female office looks
   const predefinedAvatars = [
     // Male Avatars
@@ -197,52 +203,55 @@ const AvatarCreator = ({ value, onChange }) => {
   };
 
   return (
-    <Box>
-      <Typography 
-        variant="h6" 
-        sx={{ 
-          mb: 3,
-          color: theme.palette.primary.main,
-          textAlign: 'center'
-        }}
-      >
-        Choose Your Avatar
-      </Typography>
+    <ThemeProvider theme={lightTheme}>
+      <Box>
+        <Typography 
+          variant="h6" 
+          sx={{ 
+            mb: 3,
+            color: themeColors?.primary || lightTheme.palette.primary.main,
+            textAlign: 'center'
+          }}
+        >
+          Choose Your Avatar
+        </Typography>
 
-      <Grid container spacing={2} justifyContent="center">
-        {predefinedAvatars.map((avatar, index) => (
-          <Grid item key={avatar.seed} xs={6} sm={2.4}>
-            <Paper
-              sx={{
-                p: 2,
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                transform: selectedAvatar.seed === avatar.seed ? 'scale(1.05)' : 'scale(1)',
-                border: selectedAvatar.seed === avatar.seed ? `2px solid ${theme.palette.primary.main}` : 'none',
-                boxShadow: selectedAvatar.seed === avatar.seed ? theme.shadows[8] : theme.shadows[2],
-                '&:hover': {
-                  transform: 'scale(1.05)',
-                  boxShadow: theme.shadows[8]
-                }
-              }}
-              onClick={() => handleAvatarSelect(avatar)}
-            >
-              <Box
-                component="img"
-                src={getAvatarUrl(avatar)}
-                alt={`Avatar option ${index + 1}`}
+        <Grid container spacing={2} justifyContent="center">
+          {predefinedAvatars.map((avatar, index) => (
+            <Grid item key={avatar.seed} xs={6} sm={2.4}>
+              <Paper
                 sx={{
-                  width: '100%',
-                  height: 'auto',
-                  backgroundColor: avatar.backgroundColor,
-                  borderRadius: 1
+                  p: 2,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  transform: selectedAvatar.seed === avatar.seed ? 'scale(1.05)' : 'scale(1)',
+                  border: selectedAvatar.seed === avatar.seed ? `2px solid ${themeColors?.primary || lightTheme.palette.primary.main}` : 'none',
+                  boxShadow: selectedAvatar.seed === avatar.seed ? lightTheme.shadows[8] : lightTheme.shadows[2],
+                  background: themeColors?.background || lightTheme.palette.background.paper,
+                  '&:hover': {
+                    transform: 'scale(1.05)',
+                    boxShadow: lightTheme.shadows[8]
+                  }
                 }}
-              />
-            </Paper>
-          </Grid>
-        ))}
-      </Grid>
-    </Box>
+                onClick={() => handleAvatarSelect(avatar)}
+              >
+                <Box
+                  component="img"
+                  src={getAvatarUrl(avatar)}
+                  alt={`Avatar option ${index + 1}`}
+                  sx={{
+                    width: '100%',
+                    height: 'auto',
+                    backgroundColor: avatar.backgroundColor,
+                    borderRadius: 1
+                  }}
+                />
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+    </ThemeProvider>
   );
 };
 
