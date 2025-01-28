@@ -28,9 +28,7 @@ const dbConfig = {
     connectTimeoutMS: 30000,
     maxPoolSize: 50,
     retryWrites: true,
-    ssl: true,
-    keepAlive: true,
-    keepAliveInitialDelay: 300000 // 5 minutes
+    ssl: true
   }
 };
 
