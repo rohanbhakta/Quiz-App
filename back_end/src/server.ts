@@ -79,7 +79,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Response logging middleware
+// Response logging and CORS headers middleware
 app.use((req, res, next) => {
   const originalSend = res.send;
   res.send = function(body) {
@@ -89,6 +89,14 @@ app.use((req, res, next) => {
       status: res.statusCode,
       timestamp: new Date().toISOString()
     });
+
+    // Set CORS headers for every response
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+
     return originalSend.call(this, body);
   };
   next();
