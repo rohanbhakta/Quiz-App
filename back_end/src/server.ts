@@ -31,14 +31,14 @@ app.use((req, res, next) => {
 
 // CORS configuration
 app.use(cors({
-  origin: ["https://quiz-app-frontend-new.vercel.app", "http://localhost:3000"],
+  origin: ["https://quizapp-five-iota.vercel.app", "http://localhost:3000"],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true
 }));
 
 // Handle preflight requests
 app.options('*', (req, res) => {
-  const allowedOrigins = ["https://quiz-app-frontend-new.vercel.app", "http://localhost:3000"];
+  const allowedOrigins = ["https://quizapp-five-iota.vercel.app", "http://localhost:3000"];
   const origin = req.headers.origin;
   if (origin && allowedOrigins.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
@@ -76,7 +76,7 @@ app.use((req, res, next) => {
     });
 
     // Set CORS headers for every response
-    const allowedOrigins = ["https://quiz-app-frontend-new.vercel.app", "http://localhost:3000"];
+    const allowedOrigins = ["https://quizapp-five-iota.vercel.app", "http://localhost:3000"];
     const origin = req.headers.origin;
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
