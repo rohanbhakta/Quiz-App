@@ -12,16 +12,16 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
-// CORS configuration for auth routes
-const corsOptions = {
-  origin: true, // Allow all origins
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept'],
-  credentials: true
-};
+// // CORS configuration for auth routes
+// const corsOptions = {
+//   origin: true, // Allow all origins
+//   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+//   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept'],
+//   credentials: true
+// };
 
-// Apply CORS to all auth routes
-router.use(cors(corsOptions));
+// // Apply CORS to all auth routes
+// router.use(cors(corsOptions));
 
 // Handle preflight requests
 router.options('*', (req, res) => {
@@ -36,7 +36,7 @@ router.options('*', (req, res) => {
 // Log environment and configuration
 console.log('Auth Service Configuration:', {
   environment: process.env.NODE_ENV,
-  corsConfig: corsOptions,
+  // corsConfig: corsOptions,
   timestamp: new Date().toISOString()
 });
 

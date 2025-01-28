@@ -31,7 +31,7 @@ app.use((req, res, next) => {
 
 // CORS configuration
 app.use(cors({
-  origin: true, // Allow all origins
+  origin: ["*"],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true
 }));
