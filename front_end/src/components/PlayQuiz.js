@@ -150,15 +150,21 @@ const PlayQuiz = () => {
     if (!quiz || !playerId) return;
 
     try {
-      // Calculate response time in milliseconds
+      // Calculate response time in seconds
       const currentTime = Date.now();
+      let responseTimeInSeconds;
+      
       if (!responseTime) {
-        responseTime = currentTime - questionStartTime;
+        // Convert milliseconds to seconds
+        responseTimeInSeconds = (currentTime - questionStartTime) / 1000;
+      } else {
+        // If responseTime is provided (from handleTimeUp), it's already in milliseconds
+        responseTimeInSeconds = responseTime / 1000;
       }
 
-      // Validate response time
-      const maxAllowedTime = quiz.questions[currentQuestion].timer * 1000;
-      const validatedTime = Math.min(responseTime, maxAllowedTime);
+      // Validate response time (in seconds)
+      const maxAllowedTime = quiz.questions[currentQuestion].timer;
+      const validatedTime = Math.min(responseTimeInSeconds, maxAllowedTime);
 
       // Calculate score (0 for wrong answers, 1 for correct)
       const isCorrect = selectedOption === quiz.questions[currentQuestion].correctAnswer;
@@ -200,7 +206,7 @@ const PlayQuiz = () => {
   const handleTimeUp = useCallback(() => {
     if (quiz && currentQuestion < quiz.questions.length) {
       const question = quiz.questions[currentQuestion];
-      const maxTime = question.timer * 1000;
+      const maxTime = question.timer;
       handleAnswerSelect(question.id, -1, maxTime);
     }
   }, [quiz, currentQuestion, handleAnswerSelect]);
@@ -411,7 +417,7 @@ const PlayQuiz = () => {
                     gap: 2
                   }}>
                     <Typography color="text.secondary">
-                      Response time: {(userAnswer?.responseTime / 1000).toFixed(1)}s
+                      Response time: {userAnswer?.responseTime.toFixed(1)}s
                     </Typography>
                     <Typography 
                       sx={{ 

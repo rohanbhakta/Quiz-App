@@ -149,9 +149,8 @@ const QuizResults = () => {
     return () => clearInterval(interval);
   }, [id]);
 
-  const formatTime = (ms) => {
-    if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(1)}s`;
+  const formatTime = (seconds) => {
+    return `${seconds.toFixed(1)}s`;
   };
 
   if (loading) {
@@ -777,7 +776,7 @@ const QuizResults = () => {
                   gap: 2
                 }}>
                   <Typography color="text.secondary">
-                    Response time: {(userAnswer?.responseTime / 1000).toFixed(1)}s
+                    Response time: {userAnswer?.responseTime.toFixed(1)}s
                   </Typography>
                   <Typography 
                     sx={{ 
