@@ -31,8 +31,10 @@ app.use((req, res, next) => {
 
 // CORS configuration
 const allowedOrigins = [
-  'https://quiz-app-frontend.vercel.app',  // Production frontend
-  'http://localhost:3000'                  // Local development
+  'https://quiz-app-frontend.vercel.app',    // Production frontend
+  'https://quiz-updated.vercel.app',         // Vercel default domain
+  'https://quiz-updated-git-main.vercel.app', // Vercel branch deployments
+  'http://localhost:3000'                    // Local development
 ];
 
 app.use(cors({
