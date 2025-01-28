@@ -55,6 +55,7 @@ const PlayQuiz = () => {
   });
   const [playerId, setPlayerId] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [selectedValue, setSelectedValue] = useState('');
   const [answers, setAnswers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -62,6 +63,7 @@ const PlayQuiz = () => {
   const [questionStartTime, setQuestionStartTime] = useState(null);
   const [timerKey, setTimerKey] = useState(0);
   const audioRef = useRef(null);
+  const timerRef = useRef(null);
 
   // Audio setup for timer sound
   useEffect(() => {
@@ -108,38 +110,87 @@ const PlayQuiz = () => {
     };
   }, []);
 
+  const formatAnswersForSubmission = (answersToFormat) => {
+    return answersToFormat.map(answer => ({
+      questionId: answer.questionId,
+      selectedOption: answer.selectedOption,
+      responseTime: answer.responseTime
+    }));
+  };
+
   const handleSubmit = useCallback(async (finalAnswers) => {
-    setSubmitting(true);
+    if (!id || !playerId || submitting || !quiz) return;
+    
     try {
-      if (!id || !playerId) {
-        throw new Error('Missing quiz ID or player ID');
+      // Handle differently for polls and quizzes
+      let completeAnswers;
+      if (quiz.type === 'poll') {
+        // For polls, only include questions that were actually answered
+        completeAnswers = finalAnswers.filter(answer => answer.selectedOption !== undefined);
+        
+        // If no questions were answered, just navigate to results
+        if (completeAnswers.length === 0) {
+          localStorage.setItem('currentPlayerId', playerId);
+          navigate(`/quiz/${id}/results?playerId=${playerId}`);
+          return;
+        }
+      } else {
+        // For quizzes, ensure we have answers for all questions
+        const answersMap = new Map(finalAnswers.map(answer => [answer.questionId, answer]));
+        completeAnswers = quiz.questions.map(question => {
+          const answer = answersMap.get(question.id);
+          if (answer) {
+            return {
+              questionId: question.id,
+              selectedOption: answer.selectedOption,
+              responseTime: answer.responseTime
+            };
+          }
+          return {
+            questionId: question.id,
+            selectedOption: 0,
+            responseTime: question.timer || 0
+          };
+        });
       }
 
       // Log the submission attempt
       console.log('Submitting answers:', {
         quizId: id,
         playerId,
-        answersCount: finalAnswers.length
+        answersCount: completeAnswers.length,
+        answers: completeAnswers
       });
 
-      const response = await api.submitAnswers(id, playerId, finalAnswers);
+      setSubmitting(true);
+      const response = await api.submitAnswers(id, playerId, completeAnswers);
       
       // Log successful submission
       console.log('Submission successful:', response);
       
       // Clear any existing errors
       setError(null);
-      setSubmitting(false);
       
       // Store playerId and navigate to results
       localStorage.setItem('currentPlayerId', playerId);
+      
+      // Ensure we're not in a submitting state before navigating
+      setSubmitting(false);
       navigate(`/quiz/${id}/results?playerId=${playerId}`);
     } catch (err) {
       console.error('Submit error:', err);
       setError(err.message || 'Failed to submit answers. Please try again.');
       setSubmitting(false);
     }
-  }, [id, playerId, navigate]);
+  }, [id, playerId, navigate, submitting, quiz]);
+
+  const moveToNextQuestion = useCallback((newAnswers) => {
+    setAnswers(newAnswers);
+    setCurrentQuestion(prev => prev + 1);
+    setSelectedValue('');
+    setQuestionStartTime(Date.now());
+    setTimerKey(prev => prev + 1);
+  }, []);
 
   const handleAnswerSelect = useCallback(async (questionId, selectedOption, responseTime = null) => {
     if (!quiz || !playerId) return;
@@ -161,47 +212,127 @@ const PlayQuiz = () => {
       const questionTimer = quiz.questions[currentQuestion].timer;
       const validatedTime = questionTimer ? Math.min(responseTimeInSeconds, questionTimer) : responseTimeInSeconds;
 
-      // Calculate score (0 for wrong answers, 1 for correct)
-      const isCorrect = selectedOption === quiz.questions[currentQuestion].correctAnswer;
-      const score = isCorrect ? 1 : 0;
-
-      const newAnswers = [...answers, { 
-        questionId, 
-        selectedOption,
-        responseTime: validatedTime,
-        score: score
-      }];
-      setAnswers(newAnswers);
+      // Create a map of existing answers
+      const answersMap = new Map(answers.map(answer => [answer.questionId, answer]));
       
-      if (quiz && currentQuestion < quiz.questions.length - 1) {
-        setCurrentQuestion(prev => prev + 1);
-      } else {
-        // Log the final answers before submission
-        console.log('Final answers:', newAnswers);
+      // Add current answer
+      answersMap.set(questionId, {
+        questionId,
+        selectedOption,
+        responseTime: validatedTime
+      });
+
+      if (currentQuestion === quiz.questions.length - 1) {
+        // Last question, ensure we have all answers and submit
+        const completeAnswers = quiz.questions.map(q => {
+          const existingAnswer = answersMap.get(q.id);
+          if (existingAnswer) {
+            return {
+              questionId: q.id,
+              selectedOption: existingAnswer.selectedOption,
+              responseTime: existingAnswer.responseTime
+            };
+          }
+          return {
+          questionId: q.id,
+          selectedOption: quiz.type === 'poll' ? undefined : 0,
+          responseTime: q.timer || 0
+          };
+        });
         
-        // Submit answers
         setSubmitting(true);
         try {
-          await handleSubmit(newAnswers);
+          await handleSubmit(completeAnswers);
         } catch (submitError) {
           console.error('Failed to submit answers:', submitError);
           setError(submitError.message || 'Failed to submit answers. Please try again.');
+          setSubmitting(false);
         }
+      } else {
+        // Not the last question, proceed as normal
+        const newAnswers = quiz.questions.slice(0, currentQuestion + 1).map(q => {
+          const existingAnswer = answersMap.get(q.id);
+          if (existingAnswer) {
+            return {
+              questionId: q.id,
+              selectedOption: existingAnswer.selectedOption,
+              responseTime: existingAnswer.responseTime
+            };
+          }
+          return {
+                        questionId: q.id,
+                        selectedOption: quiz.type === 'poll' ? undefined : 0,
+                        responseTime: q.timer || 0
+          };
+        });
+        
+        moveToNextQuestion(newAnswers);
       }
     } catch (error) {
       console.error('Answer selection error:', error);
       setError('Failed to process answer. Please try again.');
     }
-  }, [answers, currentQuestion, quiz, questionStartTime, handleSubmit, playerId]);
+  }, [answers, currentQuestion, quiz, questionStartTime, handleSubmit, playerId, moveToNextQuestion]);
 
   const handleTimeUp = useCallback(() => {
-    if (quiz && currentQuestion < quiz.questions.length) {
-      const question = quiz.questions[currentQuestion];
-      if (question.timer) {
-        handleAnswerSelect(question.id, -1, question.timer);
-      }
+    if (!quiz || !playerId || submitting) return;
+
+    const question = quiz.questions[currentQuestion];
+    
+    // Create a map of existing answers
+    const answersMap = new Map(answers.map(answer => [answer.questionId, answer]));
+    
+    // Add current question as unanswered
+    answersMap.set(question.id, {
+          questionId: question.id,
+          selectedOption: quiz.type === 'poll' ? undefined : 0,
+          responseTime: question.timer || 0
+    });
+
+    if (currentQuestion === quiz.questions.length - 1) {
+      // Last question, ensure we have all answers and submit
+      const completeAnswers = quiz.questions.map(q => {
+        const existingAnswer = answersMap.get(q.id);
+        if (existingAnswer) {
+          return {
+            questionId: q.id,
+            selectedOption: existingAnswer.selectedOption,
+            responseTime: existingAnswer.responseTime
+          };
+        }
+        return {
+          questionId: q.id,
+                        selectedOption: quiz.type === 'poll' ? undefined : 0,
+                        responseTime: q.timer || 0
+        };
+      });
+      
+      setSubmitting(true);
+      handleSubmit(completeAnswers).catch(() => {
+        setSubmitting(false);
+      });
+    } else {
+      // Not the last question, proceed as normal
+      const newAnswers = quiz.questions.slice(0, currentQuestion + 1).map(q => {
+        const existingAnswer = answersMap.get(q.id);
+        if (existingAnswer) {
+          return {
+            questionId: q.id,
+            selectedOption: existingAnswer.selectedOption,
+            responseTime: existingAnswer.responseTime
+          };
+        }
+        return {
+          questionId: q.id,
+          selectedOption: quiz.type === 'poll' ? undefined : 0,
+          responseTime: q.timer || 0
+        };
+      });
+      
+      setAnswers(newAnswers);
+      moveToNextQuestion(newAnswers);
     }
-  }, [quiz, currentQuestion, handleAnswerSelect]);
+  }, [quiz, playerId, currentQuestion, answers, submitting, handleSubmit, moveToNextQuestion]);
 
   useEffect(() => {
     const fetchQuiz = async () => {
@@ -212,7 +343,7 @@ const PlayQuiz = () => {
             ...quizData,
             questions: quizData.questions.map(q => ({
               ...q,
-              timer: q.timer ? Math.min(Math.max(q.timer, 5), 300) : null
+              timer: q.timer ? Math.min(Math.max(q.timer, 5), 300) : 30 // Default 30 seconds if no timer
             }))
           };
           setQuiz(validatedQuizData);
@@ -248,8 +379,25 @@ const PlayQuiz = () => {
     if (quiz && playerId && currentQuestion < quiz.questions.length) {
       setQuestionStartTime(Date.now());
       setTimerKey(prev => prev + 1); // Reset timer
+
+      // Set up timer for auto-submission
+      const question = quiz.questions[currentQuestion];
+      if (question.timer) {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+        }
+        timerRef.current = setTimeout(() => {
+          handleTimeUp();
+        }, question.timer * 1000);
+      }
     }
-  }, [quiz, playerId, currentQuestion]);
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, [quiz, playerId, currentQuestion, handleTimeUp]);
 
   // Update session time left
   useEffect(() => {
@@ -310,7 +458,7 @@ const PlayQuiz = () => {
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 8, gap: 2 }}>
             <CircularProgress size={60} />
             <Typography variant="h6" color="text.secondary">
-              Loading Quiz...
+              Loading {quiz?.type === 'poll' ? 'Poll' : 'Quiz'}...
             </Typography>
           </Box>
         </Container>
@@ -394,7 +542,7 @@ const PlayQuiz = () => {
                     color: quizTheme?.palette.primary.main || lightTheme.palette.primary.main
                   }}
                 >
-                  Join Quiz
+                  {quiz.type === 'poll' ? 'Join Poll' : 'Join Quiz'}
                 </Typography>
                 <Typography 
                   variant="h6" 
@@ -456,7 +604,7 @@ const PlayQuiz = () => {
                         <span>Joining...</span>
                       </Box>
                     ) : (
-                      'Start Quiz'
+                      quiz.type === 'poll' ? 'Start Poll' : 'Start Quiz'
                     )}
                   </Button>
                 </form>
@@ -595,7 +743,7 @@ const PlayQuiz = () => {
                   {question.text}
                 </Typography>
                 <FormControl component="fieldset" sx={{ width: '100%' }}>
-                  <RadioGroup>
+                  <RadioGroup value={selectedValue}>
                     {question.options.map((option, index) => (
                       <Paper
                         key={index}
@@ -621,7 +769,10 @@ const PlayQuiz = () => {
                             />
                           }
                           label={option}
-                          onClick={() => handleAnswerSelect(question.id, index)}
+                          onClick={() => {
+                            setSelectedValue(index.toString());
+                            handleAnswerSelect(question.id, quiz.type === 'poll' ? index : index + 1);
+                          }}
                           disabled={submitting}
                           sx={{
                             m: 0,
@@ -636,9 +787,64 @@ const PlayQuiz = () => {
                       </Paper>
                     ))}
                   </RadioGroup>
-                </FormControl>
-              </Paper>
-            </Fade>
+              </FormControl>
+
+              {currentQuestion === quiz.questions.length - 1 && (
+                <Button
+                  variant="contained"
+                  fullWidth
+                  sx={{ 
+                    mt: 3,
+                    py: 1.5,
+                    background: quizTheme?.palette.primary.main || lightTheme.palette.primary.main,
+                    '&:hover': {
+                      background: quizTheme?.palette.primary.dark || lightTheme.palette.primary.dark,
+                    }
+                  }}
+                  disabled={submitting}
+                  onClick={() => {
+                    if (submitting) return;
+                    
+                    // Handle differently for polls and quizzes
+                    let completeAnswers;
+                    if (quiz.type === 'poll') {
+                      // For polls, only include questions that were actually answered
+                      completeAnswers = answers.filter(answer => answer.selectedOption !== undefined);
+                    } else {
+                      // For quizzes, ensure we have answers for all questions
+                      const answersMap = new Map(answers.map(answer => [answer.questionId, answer]));
+                      completeAnswers = quiz.questions.map(q => {
+                        const existingAnswer = answersMap.get(q.id);
+                        if (existingAnswer) {
+                          return {
+                            questionId: q.id,
+                            selectedOption: existingAnswer.selectedOption,
+                            responseTime: existingAnswer.responseTime
+                          };
+                        }
+                        return {
+                          questionId: q.id,
+                          selectedOption: 0,
+                          responseTime: q.timer || 0
+                        };
+                      });
+                    }
+                    
+                    handleSubmit(completeAnswers);
+                  }}
+                >
+                  {submitting ? (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <CircularProgress size={20} color="inherit" />
+                      <span>Submitting...</span>
+                    </Box>
+                  ) : (
+                    quiz.type === 'poll' ? 'Submit Poll' : 'Submit Quiz'
+                  )}
+                </Button>
+              )}
+            </Paper>
+          </Fade>
           </Box>
         </Container>
       </Box>

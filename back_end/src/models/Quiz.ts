@@ -36,8 +36,16 @@ const QuestionSchema = new Schema({
   }],
   correctAnswer: { 
     type: Number, 
-    required: true,
-    min: 0
+    required: false,
+    validate: [{
+      validator: function(this: any, value: number) {
+        if (this.ownerDocument()?.type === 'poll') {
+          return value === undefined || value >= -1;
+        }
+        return value >= 0; // For quiz type
+      },
+      message: 'Invalid correct answer value for the content type'
+    }]
   },
   timer: {
     type: Number,

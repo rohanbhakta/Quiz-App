@@ -127,70 +127,85 @@ const ShareQuiz = () => {
     return `https://api.dicebear.com/7.x/avataaars/svg?${queryString}`;
   };
 
-  // Process poll results to get answer distribution
+  // Process poll results to get answer distribution for all questions
   const pollResults = useMemo(() => {
     if (!quiz || !results || quiz.type !== 'poll') return null;
 
-    const answerCounts = {};
-    let totalResponses = 0;
+    return quiz.questions.map((question, questionIndex) => {
+      const answerCounts = {};
+      let totalResponses = 0;
 
-    results.forEach(result => {
-      if (result.answers && result.answers.length > 0) {
-        const answer = result.answers[0]; // For polls, we only have one answer
-        const selectedOption = answer.selectedOption;
-        answerCounts[selectedOption] = (answerCounts[selectedOption] || 0) + 1;
-        totalResponses++;
-      }
+      results.forEach(result => {
+        if (result.answers) {
+          const answer = result.answers.find(a => a.questionId === question.id);
+          if (answer && answer.selectedOption !== undefined) {
+            answerCounts[answer.selectedOption] = (answerCounts[answer.selectedOption] || 0) + 1;
+            totalResponses++;
+          }
+        }
+      });
+
+      return {
+        questionText: question.text,
+        options: question.options.map((option, index) => ({
+          option,
+          count: answerCounts[index] || 0,
+          percentage: totalResponses ? ((answerCounts[index] || 0) / totalResponses * 100).toFixed(1) : 0
+        }))
+      };
     });
-
-    return quiz.questions[0].options.map((option, index) => ({
-      option,
-      count: answerCounts[index] || 0,
-      percentage: totalResponses ? ((answerCounts[index] || 0) / totalResponses * 100).toFixed(1) : 0
-    }));
   }, [quiz, results]);
 
   const renderPollResults = () => {
     if (!pollResults) return null;
 
-    const maxCount = Math.max(...pollResults.map(r => r.count));
-
     return (
-      <Stack spacing={3} sx={{ width: '100%', mt: 3 }}>
-        {pollResults.map((result, index) => (
-          <Box key={index}>
-            <Box sx={{ mb: 1 }}>
-              <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
-                {result.option}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {result.count} {result.count === 1 ? 'response' : 'responses'} ({result.percentage}%)
-              </Typography>
-            </Box>
-            <Box
-              sx={{
-                height: 24,
-                width: '100%',
-                backgroundColor: 'action.hover',
-                borderRadius: 1,
-                overflow: 'hidden'
-              }}
-            >
-              <Box
-                sx={{
-                  height: '100%',
-                  width: `${result.percentage}%`,
-                  background: theme.palette.gradient.primary,
-                  transition: 'width 1s ease-in-out',
-                }}
-              />
-            </Box>
+      <Stack spacing={4} sx={{ width: '100%', mt: 3 }}>
+        {pollResults.map((questionResult, questionIndex) => (
+          <Box key={questionIndex}>
+            <Typography variant="h6" sx={{ mb: 3 }}>
+              {questionResult.questionText}
+            </Typography>
+            <Stack spacing={3}>
+              {questionResult.options.map((result, optionIndex) => (
+                <Box key={optionIndex}>
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
+                      {result.option}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {result.count} {result.count === 1 ? 'response' : 'responses'} ({result.percentage}%)
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      height: 24,
+                      width: '100%',
+                      backgroundColor: 'action.hover',
+                      borderRadius: 1,
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        height: '100%',
+                        width: `${result.percentage}%`,
+                        background: theme.palette.gradient.primary,
+                        transition: 'width 1s ease-in-out',
+                      }}
+                    />
+                  </Box>
+                </Box>
+              ))}
+            </Stack>
+            {questionIndex < pollResults.length - 1 && <Divider sx={{ mt: 4 }} />}
           </Box>
         ))}
-        <Divider sx={{ my: 2 }} />
-        <Typography variant="body2" color="text.secondary" textAlign="center">
-          Total Responses: {results.length}
-        </Typography>
+        <Box sx={{ mt: 4, textAlign: 'center' }}>
+          <Typography variant="body2" color="text.secondary">
+            Total Participants: {results.length}
+          </Typography>
+        </Box>
       </Stack>
     );
   };

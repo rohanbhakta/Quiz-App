@@ -14,34 +14,46 @@ import { Poll as PollIcon } from '@mui/icons-material';
 const PollResults = ({ quiz, results }) => {
   const theme = useTheme();
 
-  // Process answer distribution data
-  const answerDistribution = useMemo(() => {
+  // Process answer distribution data and count valid responses
+  const { answerDistribution, validResponseCount } = useMemo(() => {
     if (!quiz?.questions || !results.length) {
-      return [];
+      return { answerDistribution: [], validResponseCount: 0 };
     }
 
-    return quiz.questions.map((question, qIndex) => {
+    // Count participants who answered at least one question
+    const validResponses = results.filter(result => 
+      result.answers.some(answer => answer.selectedOption !== undefined)
+    );
+
+    const distribution = quiz.questions.map((question, qIndex) => {
       const optionCounts = question.options.map((option, index) => ({
         option: `Option ${index + 1}`,
         text: option,
         count: 0
       }));
 
-      results.forEach(result => {
+      // Only count responses for this question from participants who answered at least one question
+      validResponses.forEach(result => {
         const answer = result.answers.find(a => a.questionId === question.id);
-        if (answer !== undefined && answer.selectedOption >= 0) {
+        if (answer !== undefined && answer.selectedOption !== undefined) {
           optionCounts[answer.selectedOption].count++;
         }
       });
 
       return {
         questionText: question.text,
-        options: optionCounts
+        options: optionCounts,
+        totalResponses: optionCounts.reduce((sum, opt) => sum + opt.count, 0)
       };
     });
+
+    return {
+      answerDistribution: distribution,
+      validResponseCount: validResponses.length
+    };
   }, [quiz, results]);
 
-  const totalParticipants = results.length;
+  const totalParticipants = validResponseCount;
 
   return (
     <Container maxWidth="md">
@@ -113,9 +125,14 @@ const PollResults = ({ quiz, results }) => {
                 background: theme.palette.gradient.background
               }}
             >
-              <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, fontWeight: 500 }}>
-                {questionData.questionText}
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                  {questionData.questionText}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {questionData.totalResponses} responses
+                </Typography>
+              </Box>
               <Box sx={{ height: 300, width: '100%' }}>
                 <ResponsiveContainer>
                   <BarChart

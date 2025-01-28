@@ -805,7 +805,7 @@ const QuizResults = () => {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {quiz.questions.map((question, qIndex) => {
                 const userAnswer = userAnswers.find(a => a.questionId === question.id);
-                const isCorrect = userAnswer?.selectedOption === question.correctAnswer;
+                const isCorrect = userAnswer?.selectedOption !== 0 && userAnswer?.selectedOption === question.correctAnswer + 1;
                 
                 return (
                   <Paper
@@ -837,7 +837,7 @@ const QuizResults = () => {
                     </Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <Typography variant="subtitle1" color="text.secondary" gutterBottom>
-                        Your Answer: {userAnswer ? question.options[userAnswer.selectedOption] : 'Not answered'}
+                        Your Answer: {userAnswer && userAnswer.selectedOption !== 0 && userAnswer.selectedOption !== undefined ? question.options[userAnswer.selectedOption - 1] : 'Unattempted'}
                       </Typography>
                       <Typography variant="subtitle1" color="text.secondary" gutterBottom>
                         Correct Answer: {question.options[question.correctAnswer]}

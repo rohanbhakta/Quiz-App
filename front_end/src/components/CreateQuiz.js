@@ -39,11 +39,22 @@ const CreateQuiz = () => {
   const [selectedTheme, setSelectedTheme] = useState('blue');
   const [questions, setQuestions] = useState([{
     text: '',
-    options: ['', '', '', ''],
+    options: ['', '', '', ''], // Start with 4 options for quiz
     correctAnswer: 0,
     timer: null,
     timerEnabled: false
   }]);
+
+  // Update questions when type changes
+  React.useEffect(() => {
+    setQuestions(prevQuestions => 
+      prevQuestions.map(q => ({
+        ...q,
+        options: type === 'poll' ? q.options.slice(0, 2) : ['', '', '', ''], // 2 options for poll, 4 for quiz
+        correctAnswer: type === 'poll' ? undefined : 0
+      }))
+    );
+  }, [type]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -91,13 +102,15 @@ const CreateQuiz = () => {
   };
 
   const addQuestion = () => {
-    setQuestions([...questions, {
+    const newQuestion = {
       text: '',
-      options: type === 'poll' ? ['', ''] : ['', '', '', ''], // Start with 2 options for polls, 4 for quizzes
-      correctAnswer: type === 'poll' ? -1 : 0,
+      options: type === 'poll' ? ['', ''] : ['', '', '', ''], // 2 options for poll, 4 for quiz
+      correctAnswer: type === 'poll' ? undefined : 0, // undefined for polls, 0 for quizzes
       timer: null,
       timerEnabled: false
-    }]);
+    };
+    console.log('Adding new question:', newQuestion); // Debug log
+    setQuestions(prevQuestions => [...prevQuestions, newQuestion]);
   };
 
   const removeQuestion = (index) => {
@@ -175,7 +188,19 @@ const CreateQuiz = () => {
             <ToggleButtonGroup
               value={type}
               exclusive
-              onChange={(e, newType) => newType && setType(newType)}
+              onChange={(e, newType) => {
+                if (newType) {
+                  setType(newType);
+                  // Reset questions with appropriate defaults for the new type
+                  setQuestions([{
+                    text: '',
+                    options: newType === 'poll' ? ['', ''] : ['', '', '', ''],
+                    correctAnswer: newType === 'poll' ? undefined : 0,
+                    timer: null,
+                    timerEnabled: false
+                  }]);
+                }
+              }}
               aria-label="content type"
             >
               <ToggleButton value="quiz" aria-label="quiz">
@@ -261,7 +286,7 @@ const CreateQuiz = () => {
                   display: 'flex',
                   gap: 1
                 }}>
-                  {type === 'quiz' && question.timerEnabled && (
+                {question.timerEnabled && (
                     <Box sx={{ 
                       display: 'flex', 
                       alignItems: 'center',
@@ -367,8 +392,7 @@ const CreateQuiz = () => {
                   </Box>
                 </Box>
 
-                {type === 'quiz' && (
-                  <Box sx={{ mt: 3 }}>
+                <Box sx={{ mt: 3 }}>
                     <FormControlLabel
                       control={
                         <Switch
@@ -396,12 +420,12 @@ const CreateQuiz = () => {
                         fullWidth
                       />
                     )}
-                  </Box>
-                )}
+                </Box>
               </Paper>
             ))}
 
             <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+              {/* Always show Add Question button */}
               <Button
                 startIcon={<AddIcon />}
                 onClick={addQuestion}
@@ -418,7 +442,7 @@ const CreateQuiz = () => {
                   }
                 }}
               >
-                Add Question
+                Add {type === 'poll' ? 'Poll Question' : 'Question'}
               </Button>
 
               <Button
