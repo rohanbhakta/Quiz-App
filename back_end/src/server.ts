@@ -30,35 +30,16 @@ app.use((req, res, next) => {
 });
 
 // CORS configuration
-const allowedOrigins = [
-  'https://quiz-app-frontend.vercel.app',    // Production frontend
-  'https://quiz-updated.vercel.app',         // Vercel default domain
-  'https://quiz-updated-git-main.vercel.app', // Vercel branch deployments
-  'https://quiz-app-backend.vercel.app',     // Backend domain (for same-origin requests)
-  'https://quiz-app-backend-new.vercel.app', // New backend domain
-  'http://localhost:3000'                    // Local development
-];
-
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) === -1) {
-      return callback(new Error('Not allowed by CORS'), false);
-    }
-    return callback(null, true);
-  },
+  origin: true, // Allow all origins
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true
 }));
 
 // Handle preflight requests
 app.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-  }
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, X-Requested-With, Accept');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -92,11 +73,9 @@ app.use((req, res, next) => {
     });
 
     // Set CORS headers for every response
-    const origin = req.headers.origin;
-    if (origin && allowedOrigins.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-    }
+    const origin = req.headers.origin || '*';
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
 
     return originalSend.call(this, body);
   };

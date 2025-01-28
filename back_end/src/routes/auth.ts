@@ -13,23 +13,8 @@ if (!JWT_SECRET) {
 }
 
 // CORS configuration for auth routes
-const allowedOrigins = [
-  'https://quiz-app-frontend.vercel.app',    // Production frontend
-  'https://quiz-updated.vercel.app',         // Vercel default domain
-  'https://quiz-updated-git-main.vercel.app', // Vercel branch deployments
-  'https://quiz-app-backend.vercel.app',     // Backend domain (for same-origin requests)
-  'https://quiz-app-backend-new.vercel.app', // New backend domain
-  'http://localhost:3000'                    // Local development
-];
-
 const corsOptions = {
-  origin: function(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'), false);
-    }
-  },
+  origin: true, // Allow all origins
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept'],
   credentials: true
@@ -40,11 +25,9 @@ router.use(cors(corsOptions));
 
 // Handle preflight requests
 router.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  }
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, X-Requested-With, Accept');
   res.status(200).end();

@@ -13,7 +13,8 @@ const axiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: config.API_TIMEOUT || 30000
+  timeout: config.API_TIMEOUT || 30000,
+  withCredentials: true
 });
 
 // Request interceptor
