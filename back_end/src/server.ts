@@ -34,6 +34,7 @@ const allowedOrigins = [
   'https://quiz-app-frontend.vercel.app',    // Production frontend
   'https://quiz-updated.vercel.app',         // Vercel default domain
   'https://quiz-updated-git-main.vercel.app', // Vercel branch deployments
+  'https://quiz-app-backend.vercel.app',     // Backend domain (for same-origin requests)
   'http://localhost:3000'                    // Local development
 ];
 
