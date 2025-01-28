@@ -22,7 +22,8 @@ import {
   DialogContent,
   DialogActions
 } from '@mui/material';
-import { Check as CheckIcon, Close as CloseIcon } from '@mui/icons-material';
+import { Check as CheckIcon, Close as CloseIcon, Timer as TimerIcon } from '@mui/icons-material';
+import { CountdownCircleTimer } from 'react-countdown-circle-timer';
 import { api } from '../services/api';
 import AvatarCreator from './AvatarCreator';
 import { createCustomTheme, themePresets } from '../theme';
@@ -62,10 +63,9 @@ const PlayQuiz = () => {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [showReport, setShowReport] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(null);
   const [questionStartTime, setQuestionStartTime] = useState(null);
+  const [timerKey, setTimerKey] = useState(0);
   const audioRef = useRef(null);
-  const intervalRef = useRef(null);
 
   // Audio setup for timer sound
   useEffect(() => {
@@ -115,13 +115,34 @@ const PlayQuiz = () => {
   const handleSubmit = useCallback(async (finalAnswers) => {
     setSubmitting(true);
     try {
-      if (id && playerId) {
-        await api.submitAnswers(id, playerId, finalAnswers);
-        navigate(`/quiz/${id}/results`);
+      if (!id || !playerId) {
+        throw new Error('Missing quiz ID or player ID');
       }
-    } catch (err) {
-      setError('Failed to submit answers. Please try again.');
+
+      // Log the submission attempt
+      console.log('Submitting answers:', {
+        quizId: id,
+        playerId,
+        answersCount: finalAnswers.length
+      });
+
+      const response = await api.submitAnswers(id, playerId, finalAnswers);
+      
+      // Log successful submission
+      console.log('Submission successful:', response);
+      
+      // Clear any existing errors
+      setError(null);
       setSubmitting(false);
+      
+      // Navigate to results
+      navigate(`/quiz/${id}/results`);
+    } catch (err) {
+      console.error('Submit error:', err);
+      setError(err.message || 'Failed to submit answers. Please try again.');
+      setSubmitting(false);
+      // Keep the report dialog open if submission fails
+      setShowReport(true);
     }
   }, [id, playerId, navigate]);
 
@@ -154,12 +175,24 @@ const PlayQuiz = () => {
       if (quiz && currentQuestion < quiz.questions.length - 1) {
         setCurrentQuestion(prev => prev + 1);
       } else {
-        setShowReport(true);
-        // Store playerId in localStorage before submitting
+        // Store playerId in localStorage before showing report
         localStorage.setItem('currentPlayerId', playerId);
-        await handleSubmit(newAnswers);
+        setShowReport(true);
+        
+        // Log the final answers before submission
+        console.log('Final answers:', newAnswers);
+        
+        // Submit answers
+        setSubmitting(true);
+        try {
+          await handleSubmit(newAnswers);
+        } catch (submitError) {
+          console.error('Failed to submit answers:', submitError);
+          setError(submitError.message || 'Failed to submit answers. Please try again.');
+        }
       }
     } catch (error) {
+      console.error('Answer selection error:', error);
       setError('Failed to process answer. Please try again.');
     }
   }, [answers, currentQuestion, quiz, questionStartTime, handleSubmit, playerId]);
@@ -204,52 +237,12 @@ const PlayQuiz = () => {
     fetchQuiz();
   }, [id]);
 
-  // Timer setup
   useEffect(() => {
-    if (!quiz || !playerId || currentQuestion >= quiz.questions.length) {
-      return;
+    if (quiz && playerId && currentQuestion < quiz.questions.length) {
+      setQuestionStartTime(Date.now());
+      setTimerKey(prev => prev + 1); // Reset timer
     }
-
-    // Clear any existing interval
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-
-    const duration = quiz.questions[currentQuestion].timer;
-    const start = Date.now();
-    const end = start + duration * 1000;
-
-    // Set initial states
-    setQuestionStartTime(start);
-    setTimeLeft(duration);
-
-    // Update timer every 100ms
-    intervalRef.current = setInterval(() => {
-      const now = Date.now();
-      const remaining = Math.max(0, Math.ceil((end - now) / 1000));
-      
-      setTimeLeft(remaining);
-
-      if (remaining <= 5 && audioRef.current) {
-        // Only beep on whole seconds
-        if (Math.ceil(remaining) !== Math.ceil((end - (now - 100)) / 1000)) {
-          audioRef.current.playBeep(remaining);
-        }
-      }
-
-      if (remaining <= 0) {
-        clearInterval(intervalRef.current);
-        handleTimeUp();
-      }
-    }, 100);
-
-    // Cleanup
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [quiz, playerId, currentQuestion, handleTimeUp]);
+  }, [quiz, playerId, currentQuestion]);
 
   const handleJoin = async (e) => {
     e.preventDefault();
@@ -615,37 +608,65 @@ const PlayQuiz = () => {
               </Typography>
             </Box>
 
-            <Box sx={{ mb: 3 }}>
-              <Box 
-                sx={{ 
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  height: '120px',
-                  background: quizTheme?.palette.background.paper || lightTheme.palette.background.paper,
-                  borderRadius: 2,
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                }}
-              >
-                <Typography
-                  variant="h1"
-                  sx={{
-                    fontFamily: 'monospace',
-                    fontWeight: 700,
-                    fontSize: '5rem',
-                    color: timeLeft <= 5 ? '#dc0000' : (quizTheme?.palette.primary.main || lightTheme.palette.primary.main),
-                    transition: 'color 0.3s ease',
-                    animation: timeLeft <= 5 ? 'pulse 1s infinite' : 'none',
-                    '@keyframes pulse': {
-                      '0%': { opacity: 1, transform: 'scale(1)' },
-                      '50%': { opacity: 0.7, transform: 'scale(1.05)' },
-                      '100%': { opacity: 1, transform: 'scale(1)' }
+            <Box 
+              sx={{ 
+                mb: 3,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                position: 'relative',
+                height: '180px'
+              }}
+            >
+              {quiz && question && (
+                <CountdownCircleTimer
+                  key={timerKey}
+                  isPlaying={!!playerId}
+                  duration={question.timer}
+                  colors={['#00ff00', '#F7B801', '#A30000']}
+                  colorsTime={[question.timer, question.timer / 2, 0]}
+                  size={160}
+                  strokeWidth={12}
+                  trailStrokeWidth={12}
+                  onComplete={handleTimeUp}
+                  onUpdate={(remainingTime) => {
+                    if (remainingTime <= 5 && audioRef.current) {
+                      audioRef.current.playBeep(remainingTime);
                     }
                   }}
                 >
-                  {timeLeft}
-                </Typography>
-              </Box>
+                  {({ remainingTime, color }) => (
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <TimerIcon sx={{ fontSize: 28, color }} />
+                      <Typography
+                        variant="h3"
+                        sx={{
+                          fontFamily: 'monospace',
+                          fontWeight: 700,
+                          color,
+                          lineHeight: 1
+                        }}
+                      >
+                        {remainingTime}
+                      </Typography>
+                      <Typography 
+                        variant="caption" 
+                        sx={{ 
+                          color: 'text.secondary',
+                          fontWeight: 500 
+                        }}
+                      >
+                        seconds
+                      </Typography>
+                    </Box>
+                  )}
+                </CountdownCircleTimer>
+              )}
             </Box>
 
             <Fade in={true} timeout={300}>
@@ -693,7 +714,7 @@ const PlayQuiz = () => {
                           }
                           label={option}
                           onClick={() => handleAnswerSelect(question.id, index)}
-                          disabled={submitting || timeLeft === 0}
+                          disabled={submitting}
                           sx={{
                             m: 0,
                             p: 2,
