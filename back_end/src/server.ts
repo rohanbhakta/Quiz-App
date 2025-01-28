@@ -3,6 +3,7 @@ import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
 import { connectDB } from './config/db';
 import mongoose from 'mongoose';
+import jwt from 'jsonwebtoken';
 import Quiz from './models/Quiz';
 import Player from './models/Player';
 import QuizResponse from './models/QuizResponse';
@@ -231,9 +232,57 @@ app.post('/api/quizzes/:id/join', async (req: express.Request, res: express.Resp
       return res.status(404).json({ message: 'Quiz not found' });
     }
 
+    // Get auth token if user is logged in
+    const token = req.headers.authorization?.split(' ')[1];
+    let userId = null;
+
+    if (token) {
+      try {
+        const JWT_SECRET = process.env.JWT_SECRET;
+        if (!JWT_SECRET) {
+          throw new Error('JWT_SECRET not configured');
+        }
+
+        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+        userId = decoded.userId;
+
+        // Prevent quiz creator from joining their own quiz
+        if (quiz.creatorId.toString() === userId) {
+          return res.status(403).json({ message: 'You cannot join your own quiz' });
+        }
+
+        // Check if authenticated user already has a player for this quiz
+        const existingPlayer = await Player.findOne({
+          quizId,
+          userId: new mongoose.Types.ObjectId(userId)
+        });
+
+        if (existingPlayer) {
+          return res.json({ playerId: existingPlayer.id });
+        }
+      } catch (err) {
+        // Token verification failed, continue as unauthenticated user
+        console.error('Token verification failed:', err);
+      }
+    }
+
     // Validate avatar configuration
     const requiredFields = ['style', 'seed', 'backgroundColor'];
+    const optionalFields = [
+      'accessories',
+      'skinColor',
+      'hairColor',
+      'facialHair',
+      'clothing',
+      'clothingColor',
+      'hairStyle',
+      'eyebrows',
+      'eyes',
+      'mouth'
+    ];
+    const allowedFields = [...requiredFields, ...optionalFields];
 
+    // Check for required fields
     const missingFields = requiredFields.filter(field => !avatar.hasOwnProperty(field));
     if (missingFields.length > 0) {
       return res.status(400).json({ 
@@ -242,12 +291,48 @@ app.post('/api/quizzes/:id/join', async (req: express.Request, res: express.Resp
       });
     }
 
-    const player = new Player({
+    interface SanitizedAvatar {
+      style: string;
+      seed: string;
+      backgroundColor: string;
+      accessories?: string[];
+      skinColor?: string;
+      hairColor?: string;
+      facialHair?: string;
+      clothing?: string;
+      clothingColor?: string;
+      hairStyle?: string;
+      eyebrows?: string;
+      eyes?: string;
+      mouth?: string;
+    }
+
+    // Sanitize avatar object to only include allowed fields
+    const sanitizedAvatar = Object.keys(avatar).reduce<SanitizedAvatar>((acc, key) => {
+      if (allowedFields.includes(key)) {
+        acc[key as keyof SanitizedAvatar] = avatar[key];
+      }
+      return acc;
+    }, {
+      style: avatar.style,
+      seed: avatar.seed,
+      backgroundColor: avatar.backgroundColor,
+      accessories: Array.isArray(avatar.accessories) ? avatar.accessories : []
+    });
+
+    const playerData: any = {
       id: uuidv4(),
       name,
       quizId,
-      avatar
-    });
+      avatar: sanitizedAvatar
+    };
+
+    // Add userId only if user is authenticated
+    if (userId) {
+      playerData.userId = new mongoose.Types.ObjectId(userId);
+    }
+
+    const player = new Player(playerData);
 
     await player.save();
     res.json({ playerId: player.id });
@@ -276,34 +361,108 @@ app.post('/api/quizzes/:id/submit', async (req: express.Request, res: express.Re
     let totalResponseTime = 0;
     let fastestResponse = Infinity;
     
-    answers.forEach((answer: { questionId: string; selectedOption: number; responseTime: number }) => {
+    // Process answers and calculate score
+    const processedAnswers = answers.map((answer: { questionId: string; selectedOption: number; responseTime: number }) => {
       const question = quiz.questions.find(q => q.id === answer.questionId);
-      if (question && question.correctAnswer === answer.selectedOption) {
+      const isCorrect = question && question.correctAnswer === answer.selectedOption;
+      if (isCorrect) {
         score++;
       }
       if (answer.responseTime) {
         totalResponseTime += answer.responseTime;
         fastestResponse = Math.min(fastestResponse, answer.responseTime);
       }
+      return {
+        ...answer,
+        isCorrect
+      };
     });
+
+    // Check if player has already submitted answers
+    const existingResponse = await QuizResponse.findOne({
+      playerId,
+      quizId
+    });
+
+    if (existingResponse) {
+      return res.status(400).json({ message: 'You have already submitted answers for this quiz' });
+    }
 
     const response = new QuizResponse({
       playerId,
       quizId,
-      answers,
+      answers: processedAnswers,
       score,
       averageResponseTime: totalResponseTime / answers.length,
       fastestResponse
     });
 
+    console.log('Saving quiz response:', {
+      playerId,
+      quizId,
+      score,
+      timestamp: new Date().toISOString()
+    });
+
     await response.save();
+
+    // Update player score
     player.score = score;
     await player.save();
+
+    console.log('Updated player score:', {
+      playerId,
+      score,
+      timestamp: new Date().toISOString()
+    });
 
     res.json({ score });
   } catch (error) {
     console.error('Error submitting answers:', error);
     res.status(500).json({ message: 'Error submitting answers' });
+  }
+});
+
+app.get('/api/quizzes/:id/user-answers', authMiddleware, async (req: express.Request, res: express.Response) => {
+  try {
+    const userId = (req as any).user.userId;
+    const quiz = await Quiz.findOne({ id: req.params.id });
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Find the player associated with this user
+    const player = await Player.findOne({ 
+      quizId: req.params.id,
+      userId: new mongoose.Types.ObjectId(userId)
+    });
+
+    if (!player) {
+      return res.status(404).json({ message: 'No answers found for this quiz' });
+    }
+
+    // Get the quiz response for this player
+    const response = await QuizResponse.findOne({
+      quizId: req.params.id,
+      playerId: player.id
+    });
+
+    if (!response) {
+      return res.status(404).json({ message: 'No answers found for this quiz' });
+    }
+
+    // Return answers with additional details
+    const answers = response.answers.map(answer => ({
+      questionId: answer.questionId,
+      selectedOption: answer.selectedOption,
+      responseTime: answer.responseTime,
+      score: quiz.questions.find(q => q.id === answer.questionId)?.correctAnswer === answer.selectedOption ? 1 : 0
+    }));
+
+    res.json(answers);
+  } catch (error) {
+    console.error('Error fetching user answers:', error);
+    res.status(500).json({ message: 'Error fetching user answers' });
   }
 });
 
@@ -314,9 +473,24 @@ app.get('/api/quizzes/:id/results', async (req: express.Request, res: express.Re
       return res.status(404).json({ message: 'Quiz not found' });
     }
 
+    console.log('Fetching results for quiz:', {
+      quizId: req.params.id,
+      timestamp: new Date().toISOString()
+    });
+
     const responses = await QuizResponse.find({ quizId: req.params.id });
-    const players = await Player.find({ 
-      id: { $in: responses.map(r => r.playerId) }
+    console.log('Found responses:', {
+      count: responses.length,
+      playerIds: responses.map(r => r.playerId),
+      timestamp: new Date().toISOString()
+    });
+
+    // First get all players for this quiz
+    const players = await Player.find({ quizId: req.params.id });
+    console.log('Found players:', {
+      count: players.length,
+      playerIds: players.map(p => p.id),
+      timestamp: new Date().toISOString()
     });
 
     const results = responses.map(response => {
@@ -326,8 +500,20 @@ app.get('/api/quizzes/:id/results', async (req: express.Request, res: express.Re
       const timeEfficiency = Math.max(0, 100 * (1 - response.averageResponseTime / (totalAllowedTime / maxScore)));
       const combinedScore = (scorePercentage * 0.8) + (timeEfficiency * 0.2);
 
+      const matchedPlayer = players.find(p => p.id === response.playerId);
+      if (!matchedPlayer) {
+        console.error('Player not found:', {
+          playerId: response.playerId,
+          quizId: req.params.id,
+          availablePlayers: players.map(p => ({ id: p.id, name: p.name })),
+          timestamp: new Date().toISOString()
+        });
+        return null;
+      }
+
       return {
-        player: players.find(p => p.id === response.playerId),
+        player: matchedPlayer,
+        answers: response.answers,
         score: response.score,
         averageResponseTime: response.averageResponseTime,
         fastestResponse: response.fastestResponse,
@@ -335,7 +521,9 @@ app.get('/api/quizzes/:id/results', async (req: express.Request, res: express.Re
         timeEfficiency: timeEfficiency.toFixed(1) + '%',
         combinedScore
       };
-    }).sort((a, b) => b.combinedScore - a.combinedScore);
+    })
+    .filter(result => result !== null)
+    .sort((a, b) => b.combinedScore - a.combinedScore);
 
     res.json(results);
   } catch (error) {

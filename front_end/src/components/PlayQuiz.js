@@ -16,8 +16,13 @@ import {
   LinearProgress,
   Fade,
   ThemeProvider,
-  createTheme
+  createTheme,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
+import { Check as CheckIcon, Close as CloseIcon } from '@mui/icons-material';
 import { api } from '../services/api';
 import AvatarCreator from './AvatarCreator';
 import { createCustomTheme, themePresets } from '../theme';
@@ -56,6 +61,7 @@ const PlayQuiz = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [timeLeft, setTimeLeft] = useState(null);
   const [questionStartTime, setQuestionStartTime] = useState(null);
   const audioRef = useRef(null);
@@ -120,6 +126,8 @@ const PlayQuiz = () => {
   }, [id, playerId, navigate]);
 
   const handleAnswerSelect = useCallback(async (questionId, selectedOption, responseTime = null) => {
+    if (!quiz || !playerId) return;
+
     try {
       // Calculate response time in milliseconds
       const currentTime = Date.now();
@@ -131,22 +139,30 @@ const PlayQuiz = () => {
       const maxAllowedTime = quiz.questions[currentQuestion].timer * 1000;
       const validatedTime = Math.min(responseTime, maxAllowedTime);
 
+      // Calculate score (0 for wrong answers, 1 for correct)
+      const isCorrect = selectedOption === quiz.questions[currentQuestion].correctAnswer;
+      const score = isCorrect ? 1 : 0;
+
       const newAnswers = [...answers, { 
         questionId, 
         selectedOption,
-        responseTime: validatedTime
+        responseTime: validatedTime,
+        score: score
       }];
       setAnswers(newAnswers);
       
       if (quiz && currentQuestion < quiz.questions.length - 1) {
         setCurrentQuestion(prev => prev + 1);
       } else {
+        setShowReport(true);
+        // Store playerId in localStorage before submitting
+        localStorage.setItem('currentPlayerId', playerId);
         await handleSubmit(newAnswers);
       }
     } catch (error) {
       setError('Failed to process answer. Please try again.');
     }
-  }, [answers, currentQuestion, quiz, questionStartTime, handleSubmit]);
+  }, [answers, currentQuestion, quiz, questionStartTime, handleSubmit, playerId]);
 
   const handleTimeUp = useCallback(() => {
     if (quiz && currentQuestion < quiz.questions.length) {
@@ -245,7 +261,7 @@ const PlayQuiz = () => {
         setError(null);
       }
     } catch (err) {
-      setError('Failed to join quiz. Please try again.');
+      setError(err.message || 'Failed to join quiz. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -266,6 +282,175 @@ const PlayQuiz = () => {
       secondary: quizTheme.palette.secondary.main,
       background: quizTheme.palette.background.paper
     };
+  };
+
+  const renderQuizReport = () => {
+    if (!quiz?.questions || !answers.length || answers.length !== quiz.questions.length) {
+      return null;
+    }
+
+    return (
+      <Dialog
+        open={showReport}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            boxShadow: theme => theme.shadows[8],
+            maxHeight: '90vh'
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          textAlign: 'center',
+          pb: 1,
+          borderBottom: '1px solid',
+          borderColor: 'divider'
+        }}>
+          Quiz Report
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {quiz.questions.map((question, qIndex) => {
+              const userAnswer = answers[qIndex];
+              const isCorrect = userAnswer?.selectedOption === question.correctAnswer;
+              
+              return (
+                <Paper
+                  key={qIndex}
+                  elevation={0}
+                  sx={{
+                    p: 3,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider'
+                  }}
+                >
+                  <Typography 
+                    variant="h6" 
+                    gutterBottom
+                    sx={{ 
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      color: isCorrect ? 'success.main' : 'error.main'
+                    }}
+                  >
+                    {isCorrect ? <CheckIcon /> : <CloseIcon />}
+                    Question {qIndex + 1}
+                  </Typography>
+                  <Typography sx={{ mb: 2, fontWeight: 500 }}>
+                    {question.text}
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {question.options.map((option, oIndex) => (
+                      <Paper
+                        key={oIndex}
+                        elevation={0}
+                        sx={{
+                          p: 2,
+                          backgroundColor: theme => {
+                            if (oIndex === question.correctAnswer) {
+                              return 'success.light';
+                            }
+                            if (oIndex === userAnswer?.selectedOption && !isCorrect) {
+                              return 'error.light';
+                            }
+                            return theme.palette.background.default;
+                          },
+                          color: theme => {
+                            if (oIndex === question.correctAnswer || 
+                                (oIndex === userAnswer?.selectedOption && !isCorrect)) {
+                              return 'white';
+                            }
+                            return theme.palette.text.primary;
+                          },
+                          borderRadius: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1
+                        }}
+                      >
+                        <Typography>
+                          {option}
+                        </Typography>
+                        {oIndex === question.correctAnswer && (
+                          <Typography 
+                            component="span" 
+                            sx={{ 
+                              ml: 'auto',
+                              color: 'white',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5
+                            }}
+                          >
+                            <CheckIcon fontSize="small" /> Correct Answer
+                          </Typography>
+                        )}
+                        {oIndex === userAnswer?.selectedOption && !isCorrect && (
+                          <Typography 
+                            component="span" 
+                            sx={{ 
+                              ml: 'auto',
+                              color: 'white',
+                              fontWeight: 600,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5
+                            }}
+                          >
+                            <CloseIcon fontSize="small" /> Your Answer
+                          </Typography>
+                        )}
+                      </Paper>
+                    ))}
+                  </Box>
+                  <Box sx={{ 
+                    mt: 2, 
+                    pt: 2, 
+                    borderTop: '1px solid',
+                    borderColor: 'divider',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2
+                  }}>
+                    <Typography color="text.secondary">
+                      Response time: {(userAnswer?.responseTime / 1000).toFixed(1)}s
+                    </Typography>
+                    <Typography 
+                      sx={{ 
+                        ml: 'auto',
+                        px: 2,
+                        py: 0.5,
+                        borderRadius: 1,
+                        backgroundColor: isCorrect ? 'success.main' : 'error.main',
+                        color: 'white',
+                        fontWeight: 500
+                      }}
+                    >
+                      Score: {userAnswer?.score || 0}
+                    </Typography>
+                  </Box>
+                </Paper>
+              );
+            })}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Button 
+            onClick={() => navigate(`/quiz/${id}/results`)}
+            variant="contained"
+            fullWidth
+            sx={{ py: 1.5 }}
+          >
+            View Leaderboard
+          </Button>
+        </DialogActions>
+      </Dialog>
+    );
   };
 
   if (loading) {
@@ -528,6 +713,7 @@ const PlayQuiz = () => {
           </Box>
         </Container>
       </Box>
+      {renderQuizReport()}
     </ThemeProvider>
   );
 };

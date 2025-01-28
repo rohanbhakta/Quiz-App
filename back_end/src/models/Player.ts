@@ -22,6 +22,7 @@ export interface IPlayer extends Document {
   score: number;
   quizId: string;
   avatar: AvatarConfig;
+  userId?: mongoose.Types.ObjectId;
 }
 
 const AvatarConfigSchema = new Schema({
@@ -41,52 +42,42 @@ const AvatarConfigSchema = new Schema({
   },
   accessories: {
     type: [String],
-    required: true,
     default: []
   },
   skinColor: {
     type: String,
-    required: true,
     default: '#F8D5C2'
   },
   hairColor: {
     type: String,
-    required: true,
     default: '#000000'
   },
   facialHair: {
     type: String,
-    required: true,
     default: ''
   },
   clothing: {
     type: String,
-    required: true,
     default: 'blazerShirt'
   },
   clothingColor: {
     type: String,
-    required: true,
     default: '#3498DB'
   },
   hairStyle: {
     type: String,
-    required: true,
     default: 'shortHairShortFlat'
   },
   eyebrows: {
     type: String,
-    required: true,
     default: 'default'
   },
   eyes: {
     type: String,
-    required: true,
     default: 'default'
   },
   mouth: {
     type: String,
-    required: true,
     default: 'default'
   }
 }, {
@@ -115,6 +106,11 @@ const PlayerSchema = new Schema({
     required: true,
     trim: true,
     ref: 'Quiz'
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Login',
+    sparse: true
   },
   avatar: {
     type: AvatarConfigSchema,

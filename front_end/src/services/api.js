@@ -261,5 +261,18 @@ export const api = {
       });
       throw error;
     }
+  },
+
+  getUserAnswers: async (quizId) => {
+    try {
+      const response = await axiosInstance.get(`/api/quizzes/${quizId}/user-answers`);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch user answers:', {
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+      throw error;
+    }
   }
 };
