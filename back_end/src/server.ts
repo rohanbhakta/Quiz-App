@@ -31,15 +31,18 @@ app.use((req, res, next) => {
 
 // CORS configuration
 app.use(cors({
-  origin: ["*"],
+  origin: ["https://quiz-app-frontend-new.vercel.app", "http://localhost:3000"],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true
 }));
 
 // Handle preflight requests
 app.options('*', (req, res) => {
-  const origin = req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
+  const allowedOrigins = ["https://quiz-app-frontend-new.vercel.app", "http://localhost:3000"];
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Origin, X-Requested-With, Accept');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -73,8 +76,11 @@ app.use((req, res, next) => {
     });
 
     // Set CORS headers for every response
-    const origin = req.headers.origin || '*';
-    res.setHeader('Access-Control-Allow-Origin', origin);
+    const allowedOrigins = ["https://quiz-app-frontend-new.vercel.app", "http://localhost:3000"];
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
     res.setHeader('Access-Control-Allow-Credentials', 'true');
 
     return originalSend.call(this, body);
