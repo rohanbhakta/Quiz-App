@@ -17,12 +17,8 @@ import {
   Fade,
   ThemeProvider,
   createTheme,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
 } from '@mui/material';
-import { Check as CheckIcon, Close as CloseIcon, Timer as TimerIcon } from '@mui/icons-material';
+import { Timer as TimerIcon } from '@mui/icons-material';
 import { CountdownCircleTimer } from 'react-countdown-circle-timer';
 import { api } from '../services/api';
 import AvatarCreator from './AvatarCreator';
@@ -41,6 +37,7 @@ const PlayQuiz = () => {
   const [quiz, setQuiz] = useState(null);
   const [quizTheme, setQuizTheme] = useState(null);
   const [playerName, setPlayerName] = useState('');
+  const [sessionTimeLeft, setSessionTimeLeft] = useState(null);
   const [avatarConfig, setAvatarConfig] = useState({
     style: 'avataaars',
     seed: Math.random().toString(36).substring(7),
@@ -62,7 +59,6 @@ const PlayQuiz = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [showReport, setShowReport] = useState(false);
   const [questionStartTime, setQuestionStartTime] = useState(null);
   const [timerKey, setTimerKey] = useState(0);
   const audioRef = useRef(null);
@@ -135,14 +131,13 @@ const PlayQuiz = () => {
       setError(null);
       setSubmitting(false);
       
-      // Navigate to results
-      navigate(`/quiz/${id}/results`);
+      // Store playerId and navigate to results
+      localStorage.setItem('currentPlayerId', playerId);
+      navigate(`/quiz/${id}/results?playerId=${playerId}`);
     } catch (err) {
       console.error('Submit error:', err);
       setError(err.message || 'Failed to submit answers. Please try again.');
       setSubmitting(false);
-      // Keep the report dialog open if submission fails
-      setShowReport(true);
     }
   }, [id, playerId, navigate]);
 
@@ -162,9 +157,9 @@ const PlayQuiz = () => {
         responseTimeInSeconds = responseTime / 1000;
       }
 
-      // Validate response time (in seconds)
-      const maxAllowedTime = quiz.questions[currentQuestion].timer;
-      const validatedTime = Math.min(responseTimeInSeconds, maxAllowedTime);
+      // Validate response time (in seconds) if timer exists
+      const questionTimer = quiz.questions[currentQuestion].timer;
+      const validatedTime = questionTimer ? Math.min(responseTimeInSeconds, questionTimer) : responseTimeInSeconds;
 
       // Calculate score (0 for wrong answers, 1 for correct)
       const isCorrect = selectedOption === quiz.questions[currentQuestion].correctAnswer;
@@ -181,10 +176,6 @@ const PlayQuiz = () => {
       if (quiz && currentQuestion < quiz.questions.length - 1) {
         setCurrentQuestion(prev => prev + 1);
       } else {
-        // Store playerId in localStorage before showing report
-        localStorage.setItem('currentPlayerId', playerId);
-        setShowReport(true);
-        
         // Log the final answers before submission
         console.log('Final answers:', newAnswers);
         
@@ -206,8 +197,9 @@ const PlayQuiz = () => {
   const handleTimeUp = useCallback(() => {
     if (quiz && currentQuestion < quiz.questions.length) {
       const question = quiz.questions[currentQuestion];
-      const maxTime = question.timer;
-      handleAnswerSelect(question.id, -1, maxTime);
+      if (question.timer) {
+        handleAnswerSelect(question.id, -1, question.timer);
+      }
     }
   }, [quiz, currentQuestion, handleAnswerSelect]);
 
@@ -220,10 +212,19 @@ const PlayQuiz = () => {
             ...quizData,
             questions: quizData.questions.map(q => ({
               ...q,
-              timer: Math.min(Math.max(q.timer || 30, 5), 300)
+              timer: q.timer ? Math.min(Math.max(q.timer, 5), 300) : null
             }))
           };
           setQuiz(validatedQuizData);
+
+          // Set session time left if quiz has expiration
+          if (quizData.expirationTime) {
+            const expirationTime = new Date(quizData.expirationTime);
+            const timeLeft = expirationTime.getTime() - Date.now();
+            if (timeLeft > 0) {
+              setSessionTimeLeft(Math.floor(timeLeft / 1000)); // Convert to seconds
+            }
+          }
 
           // Create custom theme based on quiz theme
           if (quizData.theme && themePresets[quizData.theme]) {
@@ -249,6 +250,25 @@ const PlayQuiz = () => {
       setTimerKey(prev => prev + 1); // Reset timer
     }
   }, [quiz, playerId, currentQuestion]);
+
+  // Update session time left
+  useEffect(() => {
+    if (sessionTimeLeft > 0) {
+      const timer = setInterval(() => {
+        setSessionTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            // Redirect to expired page
+            setError('Quiz session has expired');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [sessionTimeLeft]);
 
   const handleJoin = async (e) => {
     e.preventDefault();
@@ -283,175 +303,6 @@ const PlayQuiz = () => {
     };
   };
 
-  const renderQuizReport = () => {
-    if (!quiz?.questions || !answers.length || answers.length !== quiz.questions.length) {
-      return null;
-    }
-
-    return (
-      <Dialog
-        open={showReport}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 2,
-            boxShadow: theme => theme.shadows[8],
-            maxHeight: '90vh'
-          }
-        }}
-      >
-        <DialogTitle sx={{ 
-          textAlign: 'center',
-          pb: 1,
-          borderBottom: '1px solid',
-          borderColor: 'divider'
-        }}>
-          Quiz Report
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {quiz.questions.map((question, qIndex) => {
-              const userAnswer = answers[qIndex];
-              const isCorrect = userAnswer?.selectedOption === question.correctAnswer;
-              
-              return (
-                <Paper
-                  key={qIndex}
-                  elevation={0}
-                  sx={{
-                    p: 3,
-                    borderRadius: 2,
-                    border: '1px solid',
-                    borderColor: 'divider'
-                  }}
-                >
-                  <Typography 
-                    variant="h6" 
-                    gutterBottom
-                    sx={{ 
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      color: isCorrect ? 'success.main' : 'error.main'
-                    }}
-                  >
-                    {isCorrect ? <CheckIcon /> : <CloseIcon />}
-                    Question {qIndex + 1}
-                  </Typography>
-                  <Typography sx={{ mb: 2, fontWeight: 500 }}>
-                    {question.text}
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    {question.options.map((option, oIndex) => (
-                      <Paper
-                        key={oIndex}
-                        elevation={0}
-                        sx={{
-                          p: 2,
-                          backgroundColor: theme => {
-                            if (oIndex === question.correctAnswer) {
-                              return 'success.light';
-                            }
-                            if (oIndex === userAnswer?.selectedOption && !isCorrect) {
-                              return 'error.light';
-                            }
-                            return theme.palette.background.default;
-                          },
-                          color: theme => {
-                            if (oIndex === question.correctAnswer || 
-                                (oIndex === userAnswer?.selectedOption && !isCorrect)) {
-                              return 'white';
-                            }
-                            return theme.palette.text.primary;
-                          },
-                          borderRadius: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1
-                        }}
-                      >
-                        <Typography>
-                          {option}
-                        </Typography>
-                        {oIndex === question.correctAnswer && (
-                          <Typography 
-                            component="span" 
-                            sx={{ 
-                              ml: 'auto',
-                              color: 'white',
-                              fontWeight: 600,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5
-                            }}
-                          >
-                            <CheckIcon fontSize="small" /> Correct Answer
-                          </Typography>
-                        )}
-                        {oIndex === userAnswer?.selectedOption && !isCorrect && (
-                          <Typography 
-                            component="span" 
-                            sx={{ 
-                              ml: 'auto',
-                              color: 'white',
-                              fontWeight: 600,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 0.5
-                            }}
-                          >
-                            <CloseIcon fontSize="small" /> Your Answer
-                          </Typography>
-                        )}
-                      </Paper>
-                    ))}
-                  </Box>
-                  <Box sx={{ 
-                    mt: 2, 
-                    pt: 2, 
-                    borderTop: '1px solid',
-                    borderColor: 'divider',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 2
-                  }}>
-                    <Typography color="text.secondary">
-                      Response time: {userAnswer?.responseTime.toFixed(1)}s
-                    </Typography>
-                    <Typography 
-                      sx={{ 
-                        ml: 'auto',
-                        px: 2,
-                        py: 0.5,
-                        borderRadius: 1,
-                        backgroundColor: isCorrect ? 'success.main' : 'error.main',
-                        color: 'white',
-                        fontWeight: 500
-                      }}
-                    >
-                      Score: {userAnswer?.score || 0}
-                    </Typography>
-                  </Box>
-                </Paper>
-              );
-            })}
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-          <Button 
-            onClick={() => navigate(`/quiz/${id}/results`)}
-            variant="contained"
-            fullWidth
-            sx={{ py: 1.5 }}
-          >
-            View Leaderboard
-          </Button>
-        </DialogActions>
-      </Dialog>
-    );
-  };
-
   if (loading) {
     return (
       <ThemeProvider theme={lightTheme}>
@@ -471,7 +322,24 @@ const PlayQuiz = () => {
     return (
       <ThemeProvider theme={lightTheme}>
         <Container>
-          <Alert severity="error" sx={{ mt: 4 }}>{error}</Alert>
+          <Box sx={{ mt: 8, textAlign: 'center' }}>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mb: 3,
+                '& .MuiAlert-message': {
+                  fontSize: '1.1rem'
+                }
+              }}
+            >
+              {error === 'Quiz session has expired' 
+                ? 'This quiz is no longer accessible. The session has expired.'
+                : error}
+            </Alert>
+            <Typography variant="body1" color="text.secondary">
+              Please contact the quiz creator for more information.
+            </Typography>
+          </Box>
         </Container>
       </ThemeProvider>
     );
@@ -493,6 +361,23 @@ const PlayQuiz = () => {
         <Box sx={{ minHeight: '100vh', ...getBackgroundStyles() }}>
           <Container maxWidth="md">
             <Box sx={{ mt: 8 }}>
+              {sessionTimeLeft && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  gap: 1,
+                  mb: 3,
+                  p: 2,
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(0, 0, 0, 0.05)'
+                }}>
+                  <TimerIcon color="action" />
+                  <Typography color="text.secondary">
+                    Session expires in: {Math.floor(sessionTimeLeft / 60)}m {sessionTimeLeft % 60}s
+                  </Typography>
+                </Box>
+              )}
               <Paper sx={{ 
                 p: 4,
                 borderRadius: 2,
@@ -591,6 +476,23 @@ const PlayQuiz = () => {
       <Box sx={{ minHeight: '100vh', ...getBackgroundStyles() }}>
         <Container maxWidth="md">
           <Box sx={{ mt: 4 }}>
+            {sessionTimeLeft && (
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                gap: 1,
+                mb: 3,
+                p: 2,
+                borderRadius: 2,
+                backgroundColor: 'rgba(0, 0, 0, 0.05)'
+              }}>
+                <TimerIcon color="action" />
+                <Typography color="text.secondary">
+                  Session expires in: {Math.floor(sessionTimeLeft / 60)}m {sessionTimeLeft % 60}s
+                </Typography>
+              </Box>
+            )}
             <Box sx={{ position: 'relative', mb: 4 }}>
               <LinearProgress 
                 variant="determinate" 
@@ -621,10 +523,10 @@ const PlayQuiz = () => {
                 justifyContent: 'center',
                 alignItems: 'center',
                 position: 'relative',
-                height: '180px'
+                height: question?.timer ? '180px' : 'auto'
               }}
             >
-              {quiz && question && (
+              {quiz && question && question.timer ? (
                 <CountdownCircleTimer
                   key={timerKey}
                   isPlaying={!!playerId}
@@ -672,7 +574,7 @@ const PlayQuiz = () => {
                     </Box>
                   )}
                 </CountdownCircleTimer>
-              )}
+              ) : null}
             </Box>
 
             <Fade in={true} timeout={300}>
@@ -740,7 +642,6 @@ const PlayQuiz = () => {
           </Box>
         </Container>
       </Box>
-      {renderQuizReport()}
     </ThemeProvider>
   );
 };

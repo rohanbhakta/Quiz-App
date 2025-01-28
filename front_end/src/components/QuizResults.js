@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import confetti from 'canvas-confetti';
 import {
   Box,
@@ -42,6 +42,8 @@ const getAvatarUrl = (avatar) => {
 const QuizResults = () => {
   const theme = useTheme();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const playerId = searchParams.get('playerId');
   const [results, setResults] = useState([]);
   const [quiz, setQuiz] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -75,15 +77,18 @@ const QuizResults = () => {
           setQuiz(quizData);
           setResults(resultsData);
 
-          if (quizData.type === 'quiz') {
-            const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-            if (token) {
-              try {
-                const answersData = await api.getUserAnswers(id);
-                setUserAnswers(answersData || []);
-              } catch (err) {
-                console.log('User not authenticated or no answers found');
+          if (quizData.type === 'quiz' && playerId) {
+            try {
+              const answersData = await api.getUserAnswers(id, playerId);
+              console.log('Fetched user answers:', answersData);
+              setUserAnswers(answersData || []);
+              // Set initial tab to Report if we have answers
+              if (answersData && answersData.length > 0) {
+                setCurrentTab(1);
               }
+            } catch (err) {
+              console.error('Failed to fetch user answers:', err);
+              setError('Failed to load your answers. Please try again.');
             }
           }
         }
@@ -106,7 +111,7 @@ const QuizResults = () => {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [id]);
+  }, [id, playerId]);
 
   const triggerFireworks = () => {
     const duration = 3 * 1000;

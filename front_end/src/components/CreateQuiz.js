@@ -16,7 +16,9 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Tooltip
+  Tooltip,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -39,7 +41,8 @@ const CreateQuiz = () => {
     text: '',
     options: ['', '', '', ''],
     correctAnswer: 0,
-    timer: 30
+    timer: null,
+    timerEnabled: false
   }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -79,12 +82,21 @@ const CreateQuiz = () => {
     setQuestions(newQuestions);
   };
 
+  const handleTimerToggle = (questionIndex) => {
+    const newQuestions = [...questions];
+    const question = newQuestions[questionIndex];
+    question.timerEnabled = !question.timerEnabled;
+    question.timer = question.timerEnabled ? 30 : null;
+    setQuestions(newQuestions);
+  };
+
   const addQuestion = () => {
     setQuestions([...questions, {
       text: '',
       options: type === 'poll' ? ['', ''] : ['', '', '', ''], // Start with 2 options for polls, 4 for quizzes
       correctAnswer: type === 'poll' ? -1 : 0,
-      timer: 30
+      timer: null,
+      timerEnabled: false
     }]);
   };
 
@@ -101,7 +113,12 @@ const CreateQuiz = () => {
     setError(null);
 
     try {
-      const quiz = await api.createQuiz(title, questions, selectedTheme, type);
+      // Filter out timer if not enabled
+      const processedQuestions = questions.map(q => ({
+        ...q,
+        timer: q.timerEnabled ? q.timer : null
+      }));
+      const quiz = await api.createQuiz(title, processedQuestions, selectedTheme, type);
       navigate(`/quiz/${quiz.id}/share`);
     } catch (err) {
       setError('Failed to create quiz. Please try again.');
@@ -114,7 +131,7 @@ const CreateQuiz = () => {
            questions.every(q => 
              q.text.trim() !== '' && 
              q.options.every(opt => opt.trim() !== '') &&
-             q.timer >= 5 && q.timer <= 300
+             (!q.timerEnabled || (q.timer >= 5 && q.timer <= 300))
            );
   };
 
@@ -244,7 +261,7 @@ const CreateQuiz = () => {
                   display: 'flex',
                   gap: 1
                 }}>
-                  {type === 'quiz' && (
+                  {type === 'quiz' && question.timerEnabled && (
                     <Box sx={{ 
                       display: 'flex', 
                       alignItems: 'center',
@@ -351,15 +368,35 @@ const CreateQuiz = () => {
                 </Box>
 
                 {type === 'quiz' && (
-                  <TextField
-                    type="number"
-                    label="Timer (seconds)"
-                    value={question.timer}
-                    onChange={(e) => handleQuestionChange(questionIndex, 'timer', Math.max(5, Math.min(300, parseInt(e.target.value) || 30)))}
-                    InputProps={{ inputProps: { min: 5, max: 300 } }}
-                    helperText="Time limit: 5-300 seconds"
-                    sx={{ mt: 2 }}
-                  />
+                  <Box sx={{ mt: 3 }}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={question.timerEnabled}
+                          onChange={() => handleTimerToggle(questionIndex)}
+                          color="primary"
+                        />
+                      }
+                      label={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <TimerIcon fontSize="small" />
+                          <span>Timer {question.timerEnabled ? 'Enabled' : 'Disabled'}</span>
+                        </Box>
+                      }
+                    />
+                    {question.timerEnabled && (
+                      <TextField
+                        type="number"
+                        label="Timer (seconds)"
+                        value={question.timer}
+                        onChange={(e) => handleQuestionChange(questionIndex, 'timer', Math.max(5, Math.min(300, parseInt(e.target.value) || 30)))}
+                        InputProps={{ inputProps: { min: 5, max: 300 } }}
+                        helperText="Time limit: 5-300 seconds"
+                        sx={{ mt: 2 }}
+                        fullWidth
+                      />
+                    )}
+                  </Box>
                 )}
               </Paper>
             ))}

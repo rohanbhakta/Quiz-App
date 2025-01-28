@@ -14,6 +14,7 @@ export interface IQuiz extends Document {
   title: string;
   questions: IQuestion[];
   createdAt: Date;
+  expirationTime: Date | null;  // When the quiz URL expires
   theme: string;  // Theme name (e.g., 'blue', 'purple', etc.)
   type: string;   // 'quiz' or 'poll'
 }
@@ -40,10 +41,9 @@ const QuestionSchema = new Schema({
   },
   timer: {
     type: Number,
-    required: true,
+    required: false,
     min: 5,  // Minimum 5 seconds
     max: 300,  // Maximum 5 minutes
-    default: 30  // Default 30 seconds
   }
 }, { 
   _id: false 
@@ -92,6 +92,10 @@ const QuizSchema = new Schema({
   createdAt: { 
     type: Date, 
     default: Date.now 
+  },
+  expirationTime: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true,

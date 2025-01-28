@@ -220,7 +220,57 @@ app.post('/api/quizzes', authMiddleware, async (req: express.Request, res: expre
   }
 });
 
-app.get('/api/quizzes/:id', async (req: express.Request, res: express.Response) => {
+// Middleware to check quiz expiration
+const checkQuizExpiration = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  try {
+    const quiz = await Quiz.findOne({ id: req.params.id });
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    if (quiz.expirationTime && new Date() > quiz.expirationTime) {
+      return res.status(403).json({ message: 'Quiz session has expired' });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error checking quiz expiration:', error);
+    next(error);
+  }
+};
+
+// Set quiz expiration time
+app.post('/api/quizzes/:id/expiration', authMiddleware, async (req: express.Request, res: express.Response) => {
+  try {
+    const { durationMinutes } = req.body;
+    const userId = (req as any).user.userId;
+
+    const quiz = await Quiz.findOne({ id: req.params.id });
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Check if user is the quiz creator
+    if (quiz.creatorId.toString() !== userId) {
+      return res.status(403).json({ message: 'Not authorized to modify this quiz' });
+    }
+
+    // Calculate expiration time
+    const expirationTime = new Date();
+    expirationTime.setMinutes(expirationTime.getMinutes() + durationMinutes);
+
+    // Update quiz with expiration time
+    quiz.expirationTime = expirationTime;
+    await quiz.save();
+
+    res.json({ message: 'Quiz expiration time set successfully', expirationTime });
+  } catch (error) {
+    console.error('Error setting quiz expiration:', error);
+    res.status(500).json({ message: 'Error setting quiz expiration' });
+  }
+});
+
+app.get('/api/quizzes/:id', checkQuizExpiration, async (req: express.Request, res: express.Response) => {
   try {
     const quiz = await Quiz.findOne({ id: req.params.id });
     if (!quiz) {
@@ -233,7 +283,7 @@ app.get('/api/quizzes/:id', async (req: express.Request, res: express.Response) 
   }
 });
 
-app.post('/api/quizzes/:id/join', async (req: express.Request, res: express.Response) => {
+app.post('/api/quizzes/:id/join', checkQuizExpiration, async (req: express.Request, res: express.Response) => {
   try {
     const { name, avatar } = req.body;
     const quizId = req.params.id;
@@ -403,6 +453,17 @@ app.post('/api/quizzes/:id/submit', async (req: express.Request, res: express.Re
       return res.status(400).json({ message: 'You have already submitted answers for this quiz' });
     }
 
+    // Log the processed answers before saving
+    console.log('Processing quiz response:', {
+      playerId,
+      quizId,
+      processedAnswers,
+      score,
+      averageResponseTime: totalResponseTime / answers.length,
+      fastestResponse,
+      timestamp: new Date().toISOString()
+    });
+
     const response = new QuizResponse({
       playerId,
       quizId,
@@ -412,14 +473,26 @@ app.post('/api/quizzes/:id/submit', async (req: express.Request, res: express.Re
       fastestResponse
     });
 
-    console.log('Saving quiz response:', {
-      playerId,
-      quizId,
-      score,
-      timestamp: new Date().toISOString()
-    });
-
-    await response.save();
+    try {
+      const savedResponse = await response.save();
+      console.log('Successfully saved quiz response:', {
+        responseId: savedResponse._id,
+        playerId,
+        quizId,
+        score,
+        answersCount: savedResponse.answers.length,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error('Error saving quiz response:', {
+        error: error.message,
+        stack: error.stack,
+        playerId,
+        quizId,
+        timestamp: new Date().toISOString()
+      });
+      throw error;
+    }
 
     // Update player score
     player.score = score;
@@ -438,22 +511,40 @@ app.post('/api/quizzes/:id/submit', async (req: express.Request, res: express.Re
   }
 });
 
-app.get('/api/quizzes/:id/user-answers', authMiddleware, async (req: express.Request, res: express.Response) => {
+app.get('/api/quizzes/:id/user-answers', async (req: express.Request, res: express.Response) => {
   try {
-    const userId = (req as any).user.userId;
     const quiz = await Quiz.findOne({ id: req.params.id });
     if (!quiz) {
       return res.status(404).json({ message: 'Quiz not found' });
     }
 
-    // Find the player associated with this user
-    const player = await Player.findOne({ 
-      quizId: req.params.id,
-      userId: new mongoose.Types.ObjectId(userId)
-    });
+    let player;
+    const playerId = req.query.playerId as string;
+
+    if (playerId) {
+      // If playerId is provided in query params, use it directly
+      player = await Player.findOne({ id: playerId });
+    } else if (req.headers.authorization) {
+      // If no playerId but user is authenticated, find by userId
+      try {
+        const token = req.headers.authorization.split(' ')[1];
+        const JWT_SECRET = process.env.JWT_SECRET;
+        if (!JWT_SECRET) {
+          throw new Error('JWT_SECRET not configured');
+        }
+        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+        player = await Player.findOne({
+          quizId: req.params.id,
+          userId: new mongoose.Types.ObjectId(decoded.userId)
+        });
+      } catch (err) {
+        console.error('Token verification failed:', err);
+        return res.status(401).json({ message: 'Invalid authentication token' });
+      }
+    }
 
     if (!player) {
-      return res.status(404).json({ message: 'No answers found for this quiz' });
+      return res.status(404).json({ message: 'No player found for this quiz' });
     }
 
     // Get the quiz response for this player
@@ -465,6 +556,13 @@ app.get('/api/quizzes/:id/user-answers', authMiddleware, async (req: express.Req
     if (!response) {
       return res.status(404).json({ message: 'No answers found for this quiz' });
     }
+
+    console.log('Found quiz response:', {
+      quizId: req.params.id,
+      playerId: player.id,
+      answers: response.answers,
+      timestamp: new Date().toISOString()
+    });
 
     // Return answers with additional details
     const answers = response.answers.map(answer => ({
@@ -493,21 +591,25 @@ app.get('/api/quizzes/:id/results', async (req: express.Request, res: express.Re
       timestamp: new Date().toISOString()
     });
 
-    const responses = await QuizResponse.find({ quizId: req.params.id });
+    // Get all responses for this quiz with detailed logging
+    const responses = await QuizResponse.find({ quizId: req.params.id }).lean();
     console.log('Found responses:', {
       count: responses.length,
       playerIds: responses.map(r => r.playerId),
+      responses: responses, // Log full response data
       timestamp: new Date().toISOString()
     });
 
-    // First get all players for this quiz
-    const players = await Player.find({ quizId: req.params.id });
+    // Get all players for this quiz with detailed logging
+    const players = await Player.find({ quizId: req.params.id }).lean();
     console.log('Found players:', {
       count: players.length,
       playerIds: players.map(p => p.id),
+      players: players, // Log full player data
       timestamp: new Date().toISOString()
     });
 
+    // Process results with additional validation and logging
     const results = responses.map(response => {
       const maxScore = quiz.questions.length;
       const scorePercentage = (response.score / maxScore) * 100;
@@ -526,7 +628,8 @@ app.get('/api/quizzes/:id/results', async (req: express.Request, res: express.Re
         return null;
       }
 
-      return {
+      // Log individual result processing
+      const result = {
         player: matchedPlayer,
         answers: response.answers,
         score: response.score,
@@ -536,9 +639,27 @@ app.get('/api/quizzes/:id/results', async (req: express.Request, res: express.Re
         timeEfficiency: timeEfficiency.toFixed(1) + '%',
         combinedScore
       };
+
+      console.log('Processed result for player:', {
+        playerId: matchedPlayer.id,
+        playerName: matchedPlayer.name,
+        score: response.score,
+        answers: response.answers,
+        timestamp: new Date().toISOString()
+      });
+
+      return result;
     })
     .filter(result => result !== null)
     .sort((a, b) => b.combinedScore - a.combinedScore);
+
+    // Log final results before sending
+    console.log('Sending final results:', {
+      quizId: req.params.id,
+      resultsCount: results.length,
+      results: results,
+      timestamp: new Date().toISOString()
+    });
 
     res.json(results);
   } catch (error) {

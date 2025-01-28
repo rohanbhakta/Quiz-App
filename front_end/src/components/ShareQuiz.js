@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import {
   Box,
   Container,
@@ -17,7 +18,9 @@ import {
   ListItemAvatar,
   ListItemText,
   CircularProgress,
-  Alert
+  Alert,
+  Stack,
+  Divider
 } from '@mui/material';
 import {
   ContentCopy as CopyIcon,
@@ -36,9 +39,25 @@ const ShareQuiz = () => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [duration, setDuration] = useState('');
+  const [expirationTime, setExpirationTime] = useState(null);
+  const [settingExpiration, setSettingExpiration] = useState(false);
+  const [quiz, setQuiz] = useState(null);
 
   // Generate the quiz URL
   const quizUrl = `${window.location.origin}/quiz/${id}`;
+
+  useEffect(() => {
+    const fetchQuiz = async () => {
+      try {
+        const data = await api.getQuiz(id);
+        setQuiz(data);
+      } catch (err) {
+        setError('Failed to load quiz details.');
+      }
+    };
+    fetchQuiz();
+  }, [id]);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -71,8 +90,8 @@ const ShareQuiz = () => {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: 'Join my Quiz!',
-          text: 'Click the link to join my interactive quiz!',
+          title: `Join my ${quiz?.type === 'poll' ? 'Poll' : 'Quiz'}!`,
+          text: `Click the link to join my interactive ${quiz?.type === 'poll' ? 'poll' : 'quiz'}!`,
           url: quizUrl
         });
       } else {
@@ -108,32 +127,75 @@ const ShareQuiz = () => {
     return `https://api.dicebear.com/7.x/avataaars/svg?${queryString}`;
   };
 
-  const renderLeaderboard = () => {
-    if (loading) {
-      return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-          <CircularProgress />
-        </Box>
-      );
-    }
+  // Process poll results to get answer distribution
+  const pollResults = useMemo(() => {
+    if (!quiz || !results || quiz.type !== 'poll') return null;
 
-    if (error) {
-      return (
-        <Alert severity="error" sx={{ mt: 4 }}>{error}</Alert>
-      );
-    }
+    const answerCounts = {};
+    let totalResponses = 0;
 
-    if (!results || results.length === 0) {
-      return (
-        <Typography 
-          variant="body1" 
-          sx={{ textAlign: 'center', mt: 4, color: theme.palette.text.secondary }}
-        >
-          No participants yet
+    results.forEach(result => {
+      if (result.answers && result.answers.length > 0) {
+        const answer = result.answers[0]; // For polls, we only have one answer
+        const selectedOption = answer.selectedOption;
+        answerCounts[selectedOption] = (answerCounts[selectedOption] || 0) + 1;
+        totalResponses++;
+      }
+    });
+
+    return quiz.questions[0].options.map((option, index) => ({
+      option,
+      count: answerCounts[index] || 0,
+      percentage: totalResponses ? ((answerCounts[index] || 0) / totalResponses * 100).toFixed(1) : 0
+    }));
+  }, [quiz, results]);
+
+  const renderPollResults = () => {
+    if (!pollResults) return null;
+
+    const maxCount = Math.max(...pollResults.map(r => r.count));
+
+    return (
+      <Stack spacing={3} sx={{ width: '100%', mt: 3 }}>
+        {pollResults.map((result, index) => (
+          <Box key={index}>
+            <Box sx={{ mb: 1 }}>
+              <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
+                {result.option}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {result.count} {result.count === 1 ? 'response' : 'responses'} ({result.percentage}%)
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                height: 24,
+                width: '100%',
+                backgroundColor: 'action.hover',
+                borderRadius: 1,
+                overflow: 'hidden'
+              }}
+            >
+              <Box
+                sx={{
+                  height: '100%',
+                  width: `${result.percentage}%`,
+                  background: theme.palette.gradient.primary,
+                  transition: 'width 1s ease-in-out',
+                }}
+              />
+            </Box>
+          </Box>
+        ))}
+        <Divider sx={{ my: 2 }} />
+        <Typography variant="body2" color="text.secondary" textAlign="center">
+          Total Responses: {results.length}
         </Typography>
-      );
-    }
+      </Stack>
+    );
+  };
 
+  const renderQuizLeaderboard = () => {
     return (
       <List sx={{ width: '100%', mt: 2 }}>
         {results.map((result, index) => (
@@ -200,6 +262,35 @@ const ShareQuiz = () => {
     );
   };
 
+  const renderResults = () => {
+    if (loading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (error) {
+      return (
+        <Alert severity="error" sx={{ mt: 4 }}>{error}</Alert>
+      );
+    }
+
+    if (!results || results.length === 0) {
+      return (
+        <Typography 
+          variant="body1" 
+          sx={{ textAlign: 'center', mt: 4, color: theme.palette.text.secondary }}
+        >
+          No participants yet
+        </Typography>
+      );
+    }
+
+    return quiz?.type === 'poll' ? renderPollResults() : renderQuizLeaderboard();
+  };
+
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 8, mb: 8 }}>
@@ -214,7 +305,7 @@ const ShareQuiz = () => {
             mb: 6
           }}
         >
-          Share Quiz
+          Share {quiz?.type === 'poll' ? 'Poll' : 'Quiz'}
         </Typography>
 
         <Paper 
@@ -236,26 +327,124 @@ const ShareQuiz = () => {
             }}
           >
             <Tab label="Share" />
-            <Tab label="Leaderboard" />
+            <Tab label={quiz?.type === 'poll' ? 'Results' : 'Leaderboard'} />
           </Tabs>
 
           <Box sx={{ p: 4 }}>
             {activeTab === 0 ? (
               <>
-                <Typography 
-                  variant="h6" 
-                  gutterBottom
-                  sx={{ color: theme.palette.text.primary }}
-                >
-                  Share this link with participants:
-                </Typography>
+                <Box sx={{ mb: 4 }}>
+                  <Typography 
+                    variant="h6" 
+                    gutterBottom
+                    sx={{ color: theme.palette.text.primary }}
+                  >
+                    Set {quiz?.type === 'poll' ? 'Poll' : 'Quiz'} Duration
+                  </Typography>
+                  <Box sx={{ 
+                    display: 'flex',
+                    gap: 2,
+                    alignItems: 'center',
+                    mb: 3
+                  }}>
+                    <TextField
+                      type="number"
+                      label="Duration (minutes)"
+                      value={duration}
+                      onChange={(e) => setDuration(e.target.value)}
+                      variant="outlined"
+                      size="small"
+                      disabled={settingExpiration || expirationTime}
+                      sx={{ width: 200 }}
+                      InputProps={{
+                        inputProps: { min: 1 }
+                      }}
+                    />
+                    <Button
+                      variant="contained"
+                      onClick={async () => {
+                        try {
+                          setSettingExpiration(true);
+                          const response = await api.setQuizExpiration(id, parseInt(duration));
+                          setExpirationTime(new Date(response.expirationTime));
+                          setCopied(false);
+                        } catch (err) {
+                          setError(err.message);
+                        } finally {
+                          setSettingExpiration(false);
+                        }
+                      }}
+                      disabled={!duration || settingExpiration || expirationTime}
+                      sx={{ 
+                        py: 1,
+                        background: theme.palette.gradient.primary,
+                        '&:hover': {
+                          background: theme.palette.gradient.hover,
+                        }
+                      }}
+                    >
+                      {settingExpiration ? 'Setting...' : 'Set Duration'}
+                    </Button>
+                  </Box>
+                  {expirationTime && (
+                    <Alert severity="info" sx={{ mb: 3 }}>
+                      {quiz?.type === 'poll' ? 'Poll' : 'Quiz'} will expire at: {new Date(expirationTime).toLocaleString()}
+                    </Alert>
+                  )}
+                </Box>
 
                 <Box sx={{ 
-                  display: 'flex', 
-                  gap: 2,
-                  mt: 3,
+                  display: 'flex',
+                  flexDirection: { xs: 'column', md: 'row' },
+                  gap: 4,
+                  alignItems: 'center',
                   mb: 4
                 }}>
+                  {/* QR Code Section */}
+                  <Box sx={{ 
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 2
+                  }}>
+                    <Typography 
+                      variant="h6" 
+                      gutterBottom
+                      sx={{ color: theme.palette.text.primary }}
+                    >
+                      Scan QR Code
+                    </Typography>
+                    <Paper sx={{ 
+                      p: 3,
+                      backgroundColor: 'white',
+                      borderRadius: 2,
+                      boxShadow: theme.shadows[2]
+                    }}>
+                      <QRCodeSVG 
+                        value={quizUrl}
+                        size={200}
+                        level="H"
+                        includeMargin={true}
+                      />
+                    </Paper>
+                  </Box>
+
+                  {/* URL Section */}
+                  <Box sx={{ flex: 2 }}>
+                    <Typography 
+                      variant="h6" 
+                      gutterBottom
+                      sx={{ color: theme.palette.text.primary }}
+                    >
+                      Share this link:
+                    </Typography>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      gap: 2,
+                      mt: 3,
+                      mb: 4
+                    }}>
                   <TextField
                     fullWidth
                     value={quizUrl}
@@ -283,35 +472,39 @@ const ShareQuiz = () => {
                   </IconButton>
                 </Box>
 
-                <Button
-                  fullWidth
-                  variant="contained"
-                  startIcon={<ShareIcon />}
-                  onClick={handleShare}
-                  sx={{ 
-                    py: 1.5,
-                    background: theme.palette.gradient.primary,
-                    '&:hover': {
-                      background: theme.palette.gradient.hover,
-                    }
-                  }}
-                >
-                  Share Quiz
-                </Button>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      startIcon={<ShareIcon />}
+                      onClick={handleShare}
+                      sx={{ 
+                        py: 1.5,
+                        background: theme.palette.gradient.primary,
+                        '&:hover': {
+                          background: theme.palette.gradient.hover,
+                        }
+                      }}
+                    >
+                      Share {quiz?.type === 'poll' ? 'Poll' : 'Quiz'}
+                    </Button>
 
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    mt: 3,
-                    color: theme.palette.text.secondary,
-                    textAlign: 'center'
-                  }}
-                >
-                  Participants can use this link to join the quiz and compete in real-time
-                </Typography>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        mt: 3,
+                        color: theme.palette.text.secondary,
+                        textAlign: 'center'
+                      }}
+                    >
+                      {expirationTime 
+                        ? `${quiz?.type === 'poll' ? 'Poll' : 'Quiz'} will be accessible until ${new Date(expirationTime).toLocaleString()}`
+                        : `Set a duration to limit ${quiz?.type === 'poll' ? 'poll' : 'quiz'} access time`}
+                    </Typography>
+                  </Box>
+                </Box>
               </>
             ) : (
-              renderLeaderboard()
+              renderResults()
             )}
           </Box>
         </Paper>

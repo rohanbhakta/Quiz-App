@@ -264,9 +264,24 @@ export const api = {
     }
   },
 
-  getUserAnswers: async (quizId) => {
+  setQuizExpiration: async (quizId, durationMinutes) => {
     try {
-      const response = await axiosInstance.get(`/api/quizzes/${quizId}/user-answers`);
+      const response = await axiosInstance.post(`/api/quizzes/${quizId}/expiration`, { durationMinutes });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to set quiz expiration:', {
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+      throw error;
+    }
+  },
+
+  getUserAnswers: async (quizId, playerId) => {
+    try {
+      const response = await axiosInstance.get(`/api/quizzes/${quizId}/user-answers`, {
+        params: playerId ? { playerId } : undefined
+      });
       return response.data;
     } catch (error) {
       console.error('Failed to fetch user answers:', {
